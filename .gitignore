@@ -1,0 +1,5 @@
+.env
+dist/
+flake.lock
+.direnv/
+.vscode/

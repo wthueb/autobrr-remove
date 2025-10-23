@@ -1,0 +1,33 @@
+[project]
+name = "autobrr-remove"
+dynamic = ["version"]
+description = "automatically remove torrents from autobrr based on custom criteria"
+authors = [{ name = "William Huebner", email = "wilhueb@gmail.com" }]
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+    "qbittorrent-api>=2025.7.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/wthueb/autobrr-remove"
+
+[project.scripts]
+autobrr-remove = "autobrr_remove:main"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+fallback-version = "0.0.0"

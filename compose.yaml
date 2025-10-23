@@ -1,0 +1,30 @@
+services:
+  qbittorrent:
+    container_name: qbittorrent
+    image: lscr.io/linuxserver/qbittorrent:latest
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+      - WEBUI_PORT=8080
+    volumes:
+      - qbittorrent-config:/config
+    ports:
+      - 8080:8080
+
+  autobrr-remove:
+    container_name: autobrr-remove
+    image: ghcr.io/wthueb/autobrr-remove:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - FREE_SPACE_THRESHOLD_GIBI=1536
+      - QBITTORRENT_HOST=qbittorrent:8080
+      - QBITTORRENT_USERNAME=admin
+      - QBITTORRENT_PASSWORD=adminadmin
+      - TZ=America/New_York
+
+volumes:
+  qbittorrent-config:
