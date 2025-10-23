@@ -26,6 +26,11 @@ try:
 except KeyError:
     raise RuntimeError("QBITTORRENT_PASSWORD environment variable is required")
 
+try:
+    INTERVAL_SECONDS = int(os.environ["INTERVAL_SECONDS"])
+except KeyError:
+    raise RuntimeError("INTERVAL_SECONDS environment variable is required")
+
 logger = logging.getLogger(__name__)
 
 client = qbittorrentapi.Client(
@@ -114,7 +119,7 @@ def main():
         except Exception as e:
             logger.error(f"error during run: {e}", exc_info=True)
 
-        time.sleep(5 * 60)  # 5 min
+        time.sleep(INTERVAL_SECONDS)
 
 
 if __name__ == "__main__":
