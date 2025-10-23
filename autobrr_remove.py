@@ -7,7 +7,7 @@ import time
 import qbittorrentapi
 
 try:
-    FREE_SPACE_THRESHOLD_GIBI = int(os.environ["FREE_SPACE_THRESHOLD_GIBI"]) * 1024**3
+    FREE_SPACE_THRESHOLD = int(os.environ["FREE_SPACE_THRESHOLD_GIBI"]) * 1024**3
 except KeyError:
     raise RuntimeError("FREE_SPACE_THRESHOLD_GIBI environment variable is required")
 
@@ -40,20 +40,46 @@ except qbittorrentapi.LoginFailed as e:
     logger.warning(f"failed to connect to qBittorrent: {e}")
 
 
-def run():
-    logger.info("checking removable torrents...")
+def remove_unregistered():
+    logger.info("checking for unregistered torrents...")
 
+    torrents = client.torrents_info(category="autobrr")
+
+    for torrent in torrents:
+        trackers = torrent.trackers
+
+        for tracker in trackers:
+            # https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)#get-torrent-trackers
+            if tracker.status in [0, 1, 3]:
+                continue
+
+            logger.debug(f"{torrent.hash[-6:]}: {torrent.name=} {tracker=}")
+
+            if tracker.msg == "unregistered torrent":
+                logger.info(
+                    f"removing unregistered torrent {torrent.hash[-6:]}: {torrent.name=} {torrent.state=} {torrent.size / 1024**3:.3f} GiB"
+                )
+                torrent.delete(delete_files=True)
+                break
+
+
+def run():
+    remove_unregistered()
+
+    torrents = client.torrents_info(category="autobrr")
     free_space = client.sync_maindata().server_state.free_space_on_disk
 
-    if free_space > FREE_SPACE_THRESHOLD_GIBI:
-        logger.info(f"{free_space / 1024**4:.3f} TB free, nothing to do")
+    if free_space > FREE_SPACE_THRESHOLD:
+        logger.info(
+            f"{free_space / 1024**4:.3f} TiB free, nothing to do ({FREE_SPACE_THRESHOLD / 1024**4} TiB threshold)"
+        )
         return
 
     possible_to_remove: list[qbittorrentapi.TorrentDictionary] = []
 
-    for torrent in client.torrents_info(category="autobrr"):
+    for torrent in torrents:
         logger.debug(
-            f"{torrent.hash[-6:]}: {torrent.name=} {torrent.state=} {torrent.ratio=} {torrent.seeding_time=}"
+            f"{torrent.hash[-6:]}: {torrent.name=} {torrent.state=} {torrent.ratio=} {torrent.seeding_time=} torrent.size={torrent.size / 1024**3:.3f} GiB"
         )
 
         seeding_time = datetime.timedelta(seconds=torrent.seeding_time)
@@ -66,10 +92,10 @@ def run():
 
     possible_to_remove.sort(key=lambda t: t.seeding_time, reverse=True)
 
-    while possible_to_remove and free_space < FREE_SPACE_THRESHOLD_GIBI:
+    while possible_to_remove and free_space < FREE_SPACE_THRESHOLD:
         torrent = possible_to_remove.pop(0)
         logger.info(
-            f"removing torrent {torrent.hash[-6:]}: {torrent.name=} {torrent.state=} {torrent.ratio=} {torrent.seeding_time=}"
+            f"removing torrent {torrent.hash[-6:]}: {torrent.name=} {torrent.state=} {torrent.ratio=} {torrent.seeding_time=} torrent.size={torrent.size / 1024**3:.3f} GiB"
         )
         torrent.delete(delete_files=True)
         free_space += torrent.size
