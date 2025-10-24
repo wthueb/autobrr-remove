@@ -95,7 +95,7 @@ def run():
 
         possible_to_remove.append(torrent)
 
-    possible_to_remove.sort(key=lambda t: t.popularity)
+    possible_to_remove.sort(key=lambda t: t.uploaded / t.seeding_time)
 
     while possible_to_remove and free_space < FREE_SPACE_THRESHOLD:
         torrent = possible_to_remove.pop(0)
