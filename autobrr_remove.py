@@ -1,3 +1,4 @@
+import argparse
 import datetime
 import logging
 import os
@@ -31,7 +32,7 @@ try:
 except KeyError:
     raise RuntimeError("INTERVAL_SECONDS environment variable is required")
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 client = qbittorrentapi.Client(
     host=QBITTORRENT_HOST,
@@ -42,11 +43,11 @@ client = qbittorrentapi.Client(
 try:
     client.auth_log_in()
 except qbittorrentapi.LoginFailed as e:
-    logger.warning(f"failed to connect to qBittorrent: {e}")
+    log.warning(f"failed to connect to qBittorrent: {e}")
 
 
 def remove_unregistered():
-    logger.info("checking for unregistered torrents...")
+    log.debug("checking for unregistered torrents...")
 
     torrents = client.torrents_info(category="autobrr")
 
@@ -58,10 +59,10 @@ def remove_unregistered():
             if tracker.status in [0, 1, 3]:
                 continue
 
-            logger.debug(f"{torrent.hash[-6:]}: {torrent.name=} {tracker=}")
+            log.debug(f"{torrent.hash[-6:]}: {torrent.name=} {tracker=}")
 
             if tracker.msg == "unregistered torrent":
-                logger.info(
+                log.info(
                     f"removing unregistered torrent {torrent.hash[-6:]}: {torrent.name=} {torrent.state=} {torrent.size / 1024**3:.3f} GiB"
                 )
                 torrent.delete(delete_files=True)
@@ -69,13 +70,15 @@ def remove_unregistered():
 
 
 def run():
+    log.debug("starting removal run...")
+
     remove_unregistered()
 
     torrents = client.torrents_info(category="autobrr")
     free_space = client.sync_maindata().server_state.free_space_on_disk
 
     if free_space > FREE_SPACE_THRESHOLD:
-        logger.info(
+        log.info(
             f"{free_space / 1024**4:.3f} TiB free, nothing to do ({FREE_SPACE_THRESHOLD / 1024**4} TiB threshold)"
         )
         return
@@ -83,24 +86,26 @@ def run():
     possible_to_remove: list[qbittorrentapi.TorrentDictionary] = []
 
     for torrent in torrents:
-        logger.debug(
-            f"{torrent.hash[-6:]}: {torrent.name=} {torrent.state=} {torrent.ratio=} {torrent.seeding_time=} torrent.size={torrent.size / 1024**3:.3f} GiB"
+        log.debug(
+            f"checking {torrent.hash[-6:]}: {torrent.name} ({torrent.state}) size={torrent.size / 1024**3:.2f} GiB uploaded={torrent.uploaded / 1024**3:.2f} GiB ({torrent.ratio:.2f}) seeding_time={torrent.seeding_time} ({torrent.uploaded / torrent.seeding_time if torrent.seeding_time > 0 else 0} B/s)"
         )
 
         seeding_time = datetime.timedelta(seconds=torrent.seeding_time)
 
         if seeding_time <= datetime.timedelta(days=8) and torrent.ratio < 1.0:
-            logger.debug("skipping since seeding time and ratio do not meet minimums")
+            log.debug("skipping since seeding time and ratio do not meet minimums")
             continue
 
         possible_to_remove.append(torrent)
 
     possible_to_remove.sort(key=lambda t: t.uploaded / t.seeding_time)
 
+    log.debug(f"found {len(possible_to_remove)} torrents that satisfy removal criteria")
+
     while possible_to_remove and free_space < FREE_SPACE_THRESHOLD:
         torrent = possible_to_remove.pop(0)
-        logger.info(
-            f"removing torrent {torrent.hash[-6:]}: {torrent.name=} {torrent.state=} {torrent.ratio=} {torrent.seeding_time=} torrent.size={torrent.size / 1024**3:.3f} GiB"
+        log.info(
+            f"removing {torrent.hash[-6:]}: {torrent.name} ({torrent.state}) size={torrent.size / 1024**3:.2f} GiB uploaded={torrent.uploaded / 1024**3:.2f} GiB ({torrent.ratio:.2f}) seeding_time={torrent.seeding_time} ({torrent.uploaded / torrent.seeding_time if torrent.seeding_time > 0 else 0} B/s)"
         )
         torrent.delete(delete_files=True)
         free_space += torrent.size
@@ -113,11 +118,23 @@ def main():
         stream=sys.stdout,
     )
 
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("-d", "--daemon", action="store_true")
+
+    args = parser.parse_args()
+
+    if not args.daemon:
+        run()
+        return
+
+    log.info(f"running in daemon mode, checking every {INTERVAL_SECONDS} seconds...")
+
     while True:
         try:
             run()
         except Exception as e:
-            logger.error(f"error during run: {e}", exc_info=True)
+            log.error(f"error during run: {e}", exc_info=True)
 
         time.sleep(INTERVAL_SECONDS)
 

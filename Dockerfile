@@ -23,4 +23,4 @@ USER nonroot
 ENV LOG_LEVEL=INFO
 ENV INTERVAL_SECONDS=60
 
-CMD ["autobrr-remove"]
+CMD ["autobrr-remove", "--daemon"]
