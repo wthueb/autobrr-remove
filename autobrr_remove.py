@@ -13,6 +13,11 @@ except KeyError:
     raise RuntimeError("FREE_SPACE_THRESHOLD_GIBI environment variable is required")
 
 try:
+    SEED_TIME_DAYS = int(os.environ["SEED_TIME_DAYS"])
+except KeyError:
+    raise RuntimeError("SEED_TIME_DAYS environment variable is required")
+
+try:
     QBITTORRENT_HOST = os.environ["QBITTORRENT_HOST"]
 except KeyError:
     raise RuntimeError("QBITTORRENT_HOST environment variable is required")
@@ -86,13 +91,16 @@ def run():
     possible_to_remove: list[qbittorrentapi.TorrentDictionary] = []
 
     for torrent in torrents:
+        seeding_time = datetime.timedelta(seconds=torrent.seeding_time)
+        size = torrent.size / 1024**3
+        uploaded = torrent.uploaded / 1024**3
+        upload_rate = torrent.uploaded / torrent.seeding_time if torrent.seeding_time > 0 else 0
+
         log.debug(
-            f"checking {torrent.hash[-6:]}: {torrent.name} ({torrent.state}) size={torrent.size / 1024**3:.2f} GiB uploaded={torrent.uploaded / 1024**3:.2f} GiB ({torrent.ratio:.2f}) seeding_time={torrent.seeding_time} ({torrent.uploaded / torrent.seeding_time if torrent.seeding_time > 0 else 0} B/s)"
+            f"checking {torrent.hash[-6:]}: {torrent.name} ({torrent.state}) {size=:.2f} GiB {uploaded=:.2f} GiB ({torrent.ratio:.2f}) {seeding_time=} ({upload_rate} B/s)"
         )
 
-        seeding_time = datetime.timedelta(seconds=torrent.seeding_time)
-
-        if seeding_time <= datetime.timedelta(days=8) and torrent.ratio < 1.0:
+        if seeding_time <= datetime.timedelta(days=SEED_TIME_DAYS) and torrent.ratio < 1.0:
             log.debug("skipping since seeding time and ratio do not meet minimums")
             continue
 
@@ -104,9 +112,15 @@ def run():
 
     while possible_to_remove and free_space < FREE_SPACE_THRESHOLD:
         torrent = possible_to_remove.pop(0)
+
+        size = torrent.size / 1024**3
+        uploaded = torrent.uploaded / 1024**3
+        upload_rate = torrent.uploaded / torrent.seeding_time if torrent.seeding_time > 0 else 0
+
         log.info(
-            f"removing {torrent.hash[-6:]}: {torrent.name} ({torrent.state}) size={torrent.size / 1024**3:.2f} GiB uploaded={torrent.uploaded / 1024**3:.2f} GiB ({torrent.ratio:.2f}) seeding_time={torrent.seeding_time} ({torrent.uploaded / torrent.seeding_time if torrent.seeding_time > 0 else 0} B/s)"
+            f"removing {torrent.hash[-6:]}: {torrent.name} ({torrent.state}) {size=:.2f} GiB {uploaded=:.2f} GiB ({torrent.ratio:.2f}) {seeding_time=} ({upload_rate} B/s)"
         )
+
         torrent.delete(delete_files=True)
         free_space += torrent.size
 

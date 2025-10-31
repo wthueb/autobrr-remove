@@ -21,6 +21,7 @@ services:
       dockerfile: Dockerfile
     environment:
       - FREE_SPACE_THRESHOLD_GIBI=1536
+      - SEED_TIME_DAYS=10
       - QBITTORRENT_HOST=qbittorrent:8080
       - QBITTORRENT_USERNAME=admin
       - QBITTORRENT_PASSWORD=adminadmin
