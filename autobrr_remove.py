@@ -1,7 +1,9 @@
 import argparse
 import datetime
 import logging
+import logging.handlers
 import os
+import pathlib
 import sys
 import time
 
@@ -126,10 +128,28 @@ def run():
 
 
 def main():
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(formatter)
+
+    handlers = [stream_handler]
+
+    if path := os.environ.get("LOG_FILE", None):
+        path = pathlib.Path(path)
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        file_handler = logging.handlers.RotatingFileHandler(
+            path,
+            maxBytes=10 * 1024**2,  # 10 MiB
+            backupCount=int(os.environ.get("LOG_FILE_COUNT", 20)),
+        )
+        file_handler.setFormatter(formatter)
+        handlers.append(file_handler)
+
     logging.basicConfig(
         level=os.environ.get("LOG_LEVEL", logging.INFO),
-        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-        stream=sys.stdout,
+        handlers=handlers,
     )
 
     parser = argparse.ArgumentParser()

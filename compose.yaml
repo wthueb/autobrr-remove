@@ -20,7 +20,7 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      - FREE_SPACE_THRESHOLD_GIBI=1536
+      - FREE_SPACE_THRESHOLD_GIBI=1024
       - SEED_TIME_DAYS=10
       - QBITTORRENT_HOST=qbittorrent:8080
       - QBITTORRENT_USERNAME=admin
