@@ -115,6 +115,7 @@ def run():
     while possible_to_remove and free_space < FREE_SPACE_THRESHOLD:
         torrent = possible_to_remove.pop(0)
 
+        seeding_time = datetime.timedelta(seconds=torrent.seeding_time)
         size = torrent.size / 1024**3
         uploaded = torrent.uploaded / 1024**3
         upload_rate = torrent.uploaded / torrent.seeding_time if torrent.seeding_time > 0 else 0
