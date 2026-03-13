@@ -22,6 +22,7 @@ services:
     environment:
       - FREE_SPACE_THRESHOLD_GIBI=1024
       - SEED_TIME_DAYS=10
+      - REMOVE_UNREGISTERED_DELAY_MINUTES=15
       - QBITTORRENT_HOST=qbittorrent:8080
       - QBITTORRENT_USERNAME=admin
       - QBITTORRENT_PASSWORD=adminadmin

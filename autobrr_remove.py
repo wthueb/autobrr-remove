@@ -39,7 +39,12 @@ try:
 except KeyError:
     raise RuntimeError("INTERVAL_SECONDS environment variable is required")
 
+REMOVE_UNREGISTERED_DELAY_MINUTES = int(os.environ.get("REMOVE_UNREGISTERED_DELAY_MINUTES", 0))
+
 log = logging.getLogger(__name__)
+
+unregistered_first_seen: dict[str, datetime.datetime] = {}
+unregistered_delay = datetime.timedelta(minutes=REMOVE_UNREGISTERED_DELAY_MINUTES)
 
 client = qbittorrentapi.Client(
     host=QBITTORRENT_HOST,
@@ -57,6 +62,9 @@ def remove_unregistered():
     log.debug("checking for unregistered torrents...")
 
     torrents = client.torrents_info(category="autobrr")
+    now = datetime.datetime.now()
+
+    currently_unregistered: set[str] = set()
 
     for torrent in torrents:
         trackers = torrent.trackers
@@ -69,11 +77,36 @@ def remove_unregistered():
             log.debug(f"{torrent.hash[-6:]}: {torrent.name=} {tracker=}")
 
             if tracker.msg == "unregistered torrent":
-                log.info(
-                    f"removing unregistered torrent {torrent.hash[-6:]}: {torrent.name=} {torrent.state=} {torrent.size / 1024**3:.3f} GiB"
-                )
-                torrent.delete(delete_files=True)
+                # TL reports unregistered sometimes but then it goes away,
+                # so we want to wait a bit before removing
+                currently_unregistered.add(torrent.hash)
+
+                if torrent.hash not in unregistered_first_seen:
+                    unregistered_first_seen[torrent.hash] = now
+                    log.debug(
+                        f"first time seeing {torrent.hash[-6:]} as unregistered, will remove after {REMOVE_UNREGISTERED_DELAY_MINUTES} minutes"
+                    )
+
+                first_seen = unregistered_first_seen[torrent.hash]
+                time_unregistered = now - first_seen
+
+                if time_unregistered >= unregistered_delay:
+                    log.info(
+                        f"removing unregistered torrent {torrent.hash[-6:]}: {torrent.name=} {torrent.state=} {torrent.size / 1024**3:.3f} GiB (unregistered for {time_unregistered})"
+                    )
+                    torrent.delete(delete_files=True)
+                    unregistered_first_seen.pop(torrent.hash, None)
+                else:
+                    remaining = unregistered_delay - time_unregistered
+                    log.debug(
+                        f"torrent {torrent.hash[-6:]} unregistered for {time_unregistered}, waiting {remaining} more before removal"
+                    )
                 break
+
+    stale_hashes = set(unregistered_first_seen.keys()) - currently_unregistered
+    for torrent_hash in stale_hashes:
+        log.debug(f"torrent {torrent_hash[-6:]} is no longer unregistered, removing from tracking")
+        unregistered_first_seen.pop(torrent_hash, None)
 
 
 def run():
