@@ -15,9 +15,9 @@ except KeyError:
     raise RuntimeError("FREE_SPACE_THRESHOLD_GIBI environment variable is required")
 
 try:
-    SEED_TIME_DAYS = int(os.environ["SEED_TIME_DAYS"])
+    SEED_TIME_MINUTES = int(os.environ["SEED_TIME_MINUTES"])
 except KeyError:
-    raise RuntimeError("SEED_TIME_DAYS environment variable is required")
+    raise RuntimeError("SEED_TIME_MINUTES environment variable is required")
 
 try:
     QBITTORRENT_HOST = os.environ["QBITTORRENT_HOST"]
@@ -130,7 +130,7 @@ def run():
             f"checking {torrent.hash[-6:]}: {torrent.name} ({torrent.state}) {size=:.2f} GiB {uploaded=:.2f} GiB ({torrent.ratio:.2f}) {seeding_time=} ({upload_rate} B/s)"
         )
 
-        if seeding_time <= datetime.timedelta(days=SEED_TIME_DAYS) and torrent.ratio < 1.0:
+        if seeding_time <= datetime.timedelta(minutes=SEED_TIME_MINUTES) and torrent.ratio < 1.0:
             log.debug("skipping since seeding time and ratio do not meet minimums")
             continue
 
