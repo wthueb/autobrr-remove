@@ -34,11 +34,6 @@ try:
 except KeyError:
     raise RuntimeError("QBITTORRENT_PASSWORD environment variable is required")
 
-try:
-    INTERVAL_SECONDS = int(os.environ["INTERVAL_SECONDS"])
-except KeyError:
-    raise RuntimeError("INTERVAL_SECONDS environment variable is required")
-
 REMOVE_UNREGISTERED_DELAY_MINUTES = int(os.environ.get("REMOVE_UNREGISTERED_DELAY_MINUTES", 0))
 
 log = logging.getLogger(__name__)
@@ -195,6 +190,11 @@ def main():
     if not args.daemon:
         run()
         return
+
+    try:
+        INTERVAL_SECONDS = int(os.environ["INTERVAL_SECONDS"])
+    except KeyError:
+        raise RuntimeError("INTERVAL_SECONDS environment variable is required")
 
     log.info(f"running in daemon mode, checking every {INTERVAL_SECONDS} seconds...")
 
