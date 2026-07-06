@@ -4,29 +4,51 @@ qbittorrent:
   username: admin
   password: adminadmin
 
-# start removing torrents once free space drops below this many GiB
-free_space_threshold_gibi: 1024
-
-# only torrents in one of these categories are considered (use `null` to consider all)
-categories:
-  - autobrr
-
 # how often to check when running with --daemon
 interval_seconds: 60
-
-# wait this long after a tracker first reports a torrent as "unregistered"
-# before deleting it (some trackers report it transiently)
-remove_unregistered_delay_minutes: 15
 
 logging:
   level: INFO
   # file: /var/log/autobrr-remove/autobrr-remove.log
   # file_count: 20
 
-# a torrent is only managed if one of its trackers matches an entry below.
-# torrents whose trackers are not listed here are left untouched. a managed
-# torrent becomes eligible for removal once it has either seeded longer than
-# seed_time_minutes OR reached the given ratio.
+# delete torrents whose tracker reports them as "unregistered" (any category).
+# waits `delay_minutes` after first seeing the status before deleting, since some
+# trackers report it transiently.
+remove_unregistered:
+  enabled: true
+  delay_minutes: 15
+
+# once free space drops below `free_space_threshold_gibi`, remove eligible torrents
+# (lowest upload rate first) until the threshold is met. a torrent is eligible once it
+# has seeded longer than its tracker's `seed_time_minutes` OR reached its `ratio`.
+maintain_free_space:
+  enabled: true
+  # only torrents in one of these categories are considered (use `null` for all)
+  categories:
+    - autobrr
+  free_space_threshold_gibi: 1024
+
+# set qBittorrent share limits on torrents that don't have any yet, so qBittorrent
+# removes them once a limit is reached. limits come from the torrent's matched tracker,
+# falling back to the defaults below only when both defaults are non-null (otherwise
+# such torrents are left untouched).
+set_seed_limits:
+  enabled: true
+  # only torrents in one of these categories are considered (use `null` for all)
+  categories:
+    - cross
+  # use -1 for unlimited (same as trackers below)
+  default_seed_time_minutes: null
+  default_ratio: null
+  # action qBittorrent takes when a share limit is reached:
+  # Remove (keep files), RemoveWithContent (delete files), or Stop (pause)
+  on_delete: Remove
+
+# seed time and ratio limits are defined per tracker. a torrent is matched to a tracker
+# by its announce hostname. used both for removal eligibility (maintain_free_space) and
+# for the limits applied by set_seed_limits. use -1 for either value to mean unlimited
+# (that dimension never triggers removal / is set to "no limit" in qBittorrent).
 trackers:
   - name: Example
     hosts:

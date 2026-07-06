@@ -3,10 +3,26 @@ from __future__ import annotations
 import logging
 import pathlib
 from collections.abc import Iterable
+from typing import Annotated, Literal
 from urllib.parse import urlparse
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
+
+# a seed-time/ratio limit of -1 means "unlimited" (qBittorrent's own convention: -1 is no limit)
+UNLIMITED = -1
+
+
+def _check_limit(value: float) -> float:
+    if value != UNLIMITED and value < 0:
+        raise ValueError(f"must be a non-negative number, or {UNLIMITED} for unlimited")
+    return value
+
+
+# a number of minutes, or -1 for unlimited
+SeedTimeMinutes = Annotated[int, AfterValidator(_check_limit)]
+# a share ratio, or -1 for unlimited
+Ratio = Annotated[float, AfterValidator(_check_limit)]
 
 
 class QBittorrentConfig(BaseModel):
@@ -23,8 +39,8 @@ class TrackerConfig(BaseModel):
     name: str
     # announce hostnames that identify this tracker (e.g. tracker.example.org)
     hosts: list[str] = Field(min_length=1)
-    seed_time_minutes: int = Field(ge=0)
-    ratio: float = Field(default=1.0, ge=0)
+    seed_time_minutes: SeedTimeMinutes
+    ratio: Ratio
 
     def matches(self, hostname: str) -> bool:
         hostname = hostname.lower()
@@ -51,21 +67,61 @@ class LoggingConfig(BaseModel):
         return value
 
 
+class RemoveUnregisteredConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    # wait this long after a tracker first reports a torrent as "unregistered"
+    # before deleting it (some trackers report it transiently)
+    delay_minutes: int = Field(default=0, ge=0)
+
+
+class MaintainFreeSpaceConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    # only torrents in one of these categories are considered; null to consider all
+    categories: list[str] | None = None
+    free_space_threshold_gibi: int | None = Field(default=None, ge=0)
+
+    @property
+    def free_space_threshold_bytes(self) -> int:
+        return (self.free_space_threshold_gibi or 0) * 1024**3
+
+    @model_validator(mode="after")
+    def _require_threshold(self) -> MaintainFreeSpaceConfig:
+        if self.enabled and self.free_space_threshold_gibi is None:
+            raise ValueError(
+                "free_space_threshold_gibi is required when maintain_free_space is enabled"
+            )
+        return self
+
+
+class SetSeedLimitsConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    # only torrents in one of these categories are considered; null to consider all
+    categories: list[str] | None = None
+    # applied when a torrent's tracker is not configured under `trackers`; both must
+    # be non-null for the fallback to apply, otherwise such torrents are left untouched.
+    # use -1 for unlimited (as with trackers).
+    default_seed_time_minutes: SeedTimeMinutes | None = None
+    default_ratio: Ratio | None = None
+    # qBittorrent shareLimitAction applied when a share limit is reached
+    on_delete: Literal["Default", "Remove", "RemoveWithContent", "Stop"] = "Default"
+
+
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     qbittorrent: QBittorrentConfig
     trackers: list[TrackerConfig] = Field(min_length=1)
-    # only torrents in one of these categories are considered; null to consider all
-    categories: list[str] | None = ["autobrr"]
-    free_space_threshold_gibi: int = Field(ge=0)
-    remove_unregistered_delay_minutes: int = Field(default=0, ge=0)
     interval_seconds: int = Field(default=60, ge=1)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
-
-    @property
-    def free_space_threshold_bytes(self) -> int:
-        return self.free_space_threshold_gibi * 1024**3
+    remove_unregistered: RemoveUnregisteredConfig = Field(default_factory=RemoveUnregisteredConfig)
+    maintain_free_space: MaintainFreeSpaceConfig = Field(default_factory=MaintainFreeSpaceConfig)
+    set_seed_limits: SetSeedLimitsConfig = Field(default_factory=SetSeedLimitsConfig)
 
     def match_tracker(self, tracker_urls: Iterable[str]) -> TrackerConfig | None:
         """Return the first configured tracker matching any of the torrent's tracker URLs."""
