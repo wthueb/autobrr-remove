@@ -20,13 +20,9 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      - FREE_SPACE_THRESHOLD_GIBI=1024
-      - SEED_TIME_MINUTES=10080
-      - REMOVE_UNREGISTERED_DELAY_MINUTES=15
-      - QBITTORRENT_HOST=qbittorrent:8080
-      - QBITTORRENT_USERNAME=admin
-      - QBITTORRENT_PASSWORD=adminadmin
       - TZ=America/New_York
+    volumes:
+      - ./config.yaml:/config/config.yaml:ro
 
 volumes:
   qbittorrent-config:

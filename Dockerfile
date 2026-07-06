@@ -20,7 +20,6 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 USER nonroot
 
-ENV LOG_LEVEL=INFO
-ENV INTERVAL_SECONDS=60
+ENV CONFIG_FILE=/config/config.yaml
 
 CMD ["autobrr-remove", "--daemon"]

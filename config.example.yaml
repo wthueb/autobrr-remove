@@ -1,0 +1,35 @@
+# connection to the qBittorrent WebUI
+qbittorrent:
+  host: http://localhost:8080
+  username: admin
+  password: adminadmin
+
+# start removing torrents once free space drops below this many GiB
+free_space_threshold_gibi: 1024
+
+# only torrents in one of these categories are considered (use `null` to consider all)
+categories:
+  - autobrr
+
+# how often to check when running with --daemon
+interval_seconds: 60
+
+# wait this long after a tracker first reports a torrent as "unregistered"
+# before deleting it (some trackers report it transiently)
+remove_unregistered_delay_minutes: 15
+
+logging:
+  level: INFO
+  # file: /var/log/autobrr-remove/autobrr-remove.log
+  # file_count: 20
+
+# a torrent is only managed if one of its trackers matches an entry below.
+# torrents whose trackers are not listed here are left untouched. a managed
+# torrent becomes eligible for removal once it has either seeded longer than
+# seed_time_minutes OR reached the given ratio.
+trackers:
+  - name: Example
+    hosts:
+      - tracker.example.org
+    seed_time_minutes: 20160 # 14 days
+    ratio: 2.0

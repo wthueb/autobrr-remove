@@ -4,6 +4,8 @@
 .envrc
 .git/
 .github/
+config.yaml
+config.example.yaml
 .gitignore
 .mypy_cache/
 .pre-commit-config.yaml
