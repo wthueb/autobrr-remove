@@ -51,6 +51,11 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/autobrr-remove
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}},prefix=v
+            type=semver,pattern={{major}}.{{minor}},prefix=v
+            type=semver,pattern={{major}},prefix=v
 
       - name: Build and push by digest
         id: build
@@ -106,6 +111,11 @@ jobs:
         with:
           images: |
             ghcr.io/${{ github.repository_owner }}/autobrr-remove
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}},prefix=v
+            type=semver,pattern={{major}}.{{minor}},prefix=v
+            type=semver,pattern={{major}},prefix=v
 
       - name: Create Docker Hub manifest list and push
         working-directory: ${{ runner.temp }}/digests
