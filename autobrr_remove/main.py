@@ -176,6 +176,7 @@ def set_seed_limits(
             torrent.set_share_limits(
                 ratio_limit=str(ratio),
                 seeding_time_limit=seed_time_minutes,
+                inactive_seeding_time_limit=-2,
                 share_limit_action=cfg.on_delete,
                 share_limits_mode="MatchAny",
             )
