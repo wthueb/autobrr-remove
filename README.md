@@ -16,8 +16,10 @@ The config is organized into three independent features, each toggled with its
 own `enabled` flag:
 
 - **`remove_unregistered`** — deletes torrents whose tracker reports them as
-  "unregistered", across all categories. Waits `delay_minutes` after first
-  seeing the status before deleting (some trackers report it transiently).
+  "unregistered", across all categories except those in `ignore_categories`
+  (a `null` entry ignores torrents without a category, useful when uploading).
+  Waits `delay_minutes` after first seeing the status before deleting (some
+  trackers report it transiently).
 - **`maintain_free_space`** — once free space drops below
   `free_space_threshold_gibi`, removes eligible torrents in `categories`
   (lowest upload rate first) until the threshold is met.

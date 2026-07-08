@@ -86,6 +86,12 @@ def remove_unregistered(
     currently_unregistered: set[str] = set()
 
     for torrent in torrents:
+        if cfg.ignores(torrent.category):
+            log.debug(
+                f"torrent {torrent.hash[-6:]} is in ignored category {torrent.category!r}, skipping"
+            )
+            continue
+
         trackers = torrent.trackers
 
         for tracker in trackers:

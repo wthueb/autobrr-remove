@@ -74,6 +74,13 @@ class RemoveUnregisteredConfig(BaseModel):
     # wait this long after a tracker first reports a torrent as "unregistered"
     # before deleting it (some trackers report it transiently)
     delay_minutes: int = Field(default=0, ge=0)
+    # torrents in these categories are never removed; a null entry means
+    # torrents without a category (useful for torrents being uploaded)
+    ignore_categories: list[str | None] = Field(default_factory=list)
+
+    def ignores(self, category: str) -> bool:
+        # qBittorrent reports "" for torrents without a category, configured here as null
+        return (category or None) in self.ignore_categories
 
 
 class MaintainFreeSpaceConfig(BaseModel):

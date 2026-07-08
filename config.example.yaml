@@ -18,6 +18,11 @@ logging:
 remove_unregistered:
   enabled: true
   delay_minutes: 15
+  # never remove torrents in these categories; a `null` entry means torrents
+  # without a category (useful for torrents you are uploading)
+  ignore_categories:
+    - null
+    - upload
 
 # once free space drops below `free_space_threshold_gibi`, remove eligible torrents
 # (lowest upload rate first) until the threshold is met. a torrent is eligible once it
