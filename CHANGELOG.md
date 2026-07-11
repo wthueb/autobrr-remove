@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.1.0](https://github.com/wthueb/autobrr-remove/compare/v3.0.0...v3.1.0) (2026-07-11)
+
+
+### Features
+
+* add remove_unregistered.ignore_categories to config ([1fc9207](https://github.com/wthueb/autobrr-remove/commit/1fc92076e17c1a55b63a7244f4b655f0d6e5f59d))
+
+
+### Bug Fixes
+
+* remove unregistered torrents with different message format ([44f6712](https://github.com/wthueb/autobrr-remove/commit/44f67128326f402ff0df9e7fdf13b4b9fadb9736))
+
 ## [3.0.0](https://github.com/wthueb/autobrr-remove/compare/v2.0.0...v3.0.0) (2026-07-07)
 
 
