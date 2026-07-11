@@ -76,7 +76,7 @@ def remove_unregistered(
     unregistered_first_seen: dict[str, datetime.datetime],
     dry_run: bool = False,
 ) -> None:
-    log.debug("checking for unregistered torrents...")
+    log.info("checking for unregistered torrents...")
 
     torrents = client.torrents_info()
     now = datetime.datetime.now()
@@ -86,9 +86,11 @@ def remove_unregistered(
     currently_unregistered: set[str] = set()
 
     for torrent in torrents:
+        log.debug(f"checking torrent {torrent.hash[-6:]}: {torrent.name} ({torrent.state})")
+
         if cfg.ignores(torrent.category):
             log.debug(
-                f"torrent {torrent.hash[-6:]} is in ignored category {torrent.category!r}, skipping"
+                f"torrent {torrent.hash[-6:]} is in ignored category {torrent.category!r}, skipping check"
             )
             continue
 
@@ -144,7 +146,7 @@ def set_seed_limits(
 ) -> None:
     cfg = config.set_seed_limits
 
-    log.debug("setting seed limits...")
+    log.info("setting seed limits...")
 
     torrents = torrents_in_categories(client, cfg.categories)
 
@@ -196,7 +198,7 @@ def maintain_free_space(
     config: Config,
     dry_run: bool = False,
 ) -> None:
-    log.debug("checking free space...")
+    log.info("maintaining free space...")
 
     torrents = torrents_in_categories(client, config.maintain_free_space.categories)
     free_space = client.sync_maindata().server_state.free_space_on_disk
@@ -274,7 +276,7 @@ def run(
     unregistered_first_seen: dict[str, datetime.datetime],
     dry_run: bool = False,
 ) -> None:
-    log.debug("starting run...")
+    log.info("starting run...")
 
     if config.remove_unregistered.enabled:
         remove_unregistered(client, config.remove_unregistered, unregistered_first_seen, dry_run)
