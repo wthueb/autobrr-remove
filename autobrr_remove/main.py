@@ -99,7 +99,10 @@ def remove_unregistered(
             if tracker.status in [0, 1, 3]:
                 continue
 
-            if tracker.msg == "unregistered torrent":
+            if (
+                tracker.msg == "unregistered torrent"
+                or tracker.msg == "Torrent does not exist on this tracker."
+            ):
                 # TL reports unregistered sometimes but then it goes away,
                 # so we want to wait a bit before removing
                 currently_unregistered.add(torrent.hash)
