@@ -90,7 +90,8 @@ def remove_unregistered(
 
         if cfg.ignores(torrent.category):
             log.debug(
-                f"torrent {torrent.hash[-6:]} is in ignored category {torrent.category!r}, skipping check"
+                f"torrent {torrent.hash[-6:]} is in ignored category "
+                f"{torrent.category!r}, skipping check"
             )
             continue
 
@@ -112,7 +113,8 @@ def remove_unregistered(
                 if torrent.hash not in unregistered_first_seen:
                     unregistered_first_seen[torrent.hash] = now
                     log.debug(
-                        f"first time seeing {torrent.hash[-6:]} as unregistered, will remove after {cfg.delay_minutes} minutes"
+                        f"first time seeing {torrent.hash[-6:]} as unregistered, "
+                        f"will remove after {cfg.delay_minutes} minutes"
                     )
 
                 first_seen = unregistered_first_seen[torrent.hash]
@@ -121,7 +123,9 @@ def remove_unregistered(
                 if time_unregistered >= delay:
                     action = "[dry-run] would remove" if dry_run else "removing"
                     log.info(
-                        f"{action} unregistered torrent {torrent.hash[-6:]}: {torrent.name=} {torrent.state=} {torrent.size / 1024**3:.3f} GiB (unregistered for {time_unregistered})"
+                        f"{action} unregistered torrent {torrent.hash[-6:]}: {torrent.name=} "
+                        f"{torrent.state=} {torrent.size / 1024**3:.3f} GiB "
+                        f"(unregistered for {time_unregistered})"
                     )
                     if not dry_run:
                         torrent.delete(delete_files=True)
@@ -129,7 +133,8 @@ def remove_unregistered(
                 else:
                     remaining = delay - time_unregistered
                     log.debug(
-                        f"torrent {torrent.hash[-6:]} unregistered for {time_unregistered}, waiting {remaining} more before removal"
+                        f"torrent {torrent.hash[-6:]} unregistered for {time_unregistered}, "
+                        f"waiting {remaining} more before removal"
                     )
                 break
 
@@ -206,7 +211,8 @@ def maintain_free_space(
 
     if free_space > threshold:
         log.info(
-            f"{free_space / 1024**4:.3f} TiB free, nothing to do ({threshold / 1024**4} TiB threshold)"
+            f"{free_space / 1024**4:.3f} TiB free, nothing to do "
+            f"({threshold / 1024**4} TiB threshold)"
         )
         return
 
@@ -217,7 +223,8 @@ def maintain_free_space(
 
         if tracker is None:
             log.debug(
-                f"{torrent.hash[-6:]}: {torrent.name} is not managed by any configured tracker, skipping"
+                f"{torrent.hash[-6:]}: {torrent.name} is not managed by any configured tracker, "
+                "skipping"
             )
             continue
 
@@ -227,7 +234,9 @@ def maintain_free_space(
         upload_rate = torrent.uploaded / torrent.seeding_time if torrent.seeding_time > 0 else 0
 
         log.debug(
-            f"checking {torrent.hash[-6:]} [{tracker.name}]: {torrent.name} ({torrent.state}) {size=:.2f} GiB {uploaded=:.2f} GiB ({torrent.ratio:.2f}) {seeding_time=} ({upload_rate} B/s)"
+            f"checking {torrent.hash[-6:]} [{tracker.name}]: {torrent.name} ({torrent.state}) "
+            f"{size=:.2f} GiB {uploaded=:.2f} GiB ({torrent.ratio:.2f}) "
+            f"{seeding_time=} ({upload_rate} B/s)"
         )
 
         # a torrent is eligible for removal once it has met either the seed-time or the
@@ -239,7 +248,8 @@ def maintain_free_space(
 
         if not (seed_time_met or ratio_met):
             log.debug(
-                f"skipping since seeding time and ratio do not meet {tracker.name} minimums ({tracker.seed_time_minutes}m / {tracker.ratio})"
+                f"skipping since seeding time and ratio do not meet {tracker.name} minimums "
+                f"({tracker.seed_time_minutes}m / {tracker.ratio})"
             )
             continue
 
@@ -261,7 +271,8 @@ def maintain_free_space(
 
         action = "[dry-run] would remove" if dry_run else "removing"
         log.info(
-            f"{action} {torrent.hash[-6:]}: {torrent.name} ({torrent.state}) {size=:.2f} GiB {uploaded=:.2f} GiB ({torrent.ratio:.2f}) {seeding_time=} ({upload_rate} B/s)"
+            f"{action} {torrent.hash[-6:]}: {torrent.name} ({torrent.state}) {size=:.2f} GiB "
+            f"{uploaded=:.2f} GiB ({torrent.ratio:.2f}) {seeding_time=} ({upload_rate} B/s)"
         )
 
         if not dry_run:
