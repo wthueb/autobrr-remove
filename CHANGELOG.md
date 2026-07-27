@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.1](https://github.com/wthueb/autobrr-remove/compare/v3.1.0...v3.1.1) (2026-07-27)
+
+
+### Bug Fixes
+
+* use case-insensitive unregistered check ([ae10f84](https://github.com/wthueb/autobrr-remove/commit/ae10f84fd0f2a8c226e13560fdff711558579f41))
+
 ## [3.1.0](https://github.com/wthueb/autobrr-remove/compare/v3.0.0...v3.1.0) (2026-07-11)
 
 
