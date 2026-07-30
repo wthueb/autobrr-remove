@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.2.0](https://github.com/wthueb/autobrr-remove/compare/v3.1.1...v3.2.0) (2026-07-30)
+
+
+### Features
+
+* remove completed torrents ([e46f6fb](https://github.com/wthueb/autobrr-remove/commit/e46f6fb3e62744f23fa4a2f65a14ee83b92ff2f0))
+* support categories and ignore_categories with every feature ([ad3f1f4](https://github.com/wthueb/autobrr-remove/commit/ad3f1f4ffa80ede7fce7136e1cb1bd386ad85a88))
+
+
+### Bug Fixes
+
+* "torrent has been deleted" as unregistered message ([9a56850](https://github.com/wthueb/autobrr-remove/commit/9a56850de2536587219be8342fbfb046152bbc27))
+
 ## [3.1.1](https://github.com/wthueb/autobrr-remove/compare/v3.1.0...v3.1.1) (2026-07-27)
 
 
