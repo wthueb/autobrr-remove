@@ -6,9 +6,12 @@ import os
 import pathlib
 import sys
 import time
+from collections.abc import Iterable
+from typing import Any, Protocol
 
 import qbittorrentapi
 from pydantic import ValidationError
+from qbittorrentapi.torrents import TorrentStatusesT
 
 from autobrr_remove.config import (
     UNLIMITED,
@@ -22,6 +25,10 @@ from autobrr_remove.config import (
 )
 
 log = logging.getLogger("autobrr_remove")
+
+
+class TorrentsClient(Protocol):
+    def torrents_info(self, status_filter: TorrentStatusesT | None = None) -> Iterable[Any]: ...
 
 
 def setup_logging(cfg: LoggingConfig) -> None:
@@ -61,10 +68,10 @@ def build_client(cfg: QBittorrentConfig) -> qbittorrentapi.Client:
 
 
 def torrents_in_categories(
-    client: qbittorrentapi.Client,
+    client: TorrentsClient,
     categories: list[str | None] | None,
     ignore_categories: list[str | None] | None = None,
-    status_filter: str | None = None,
+    status_filter: TorrentStatusesT | None = None,
 ) -> list[qbittorrentapi.TorrentDictionary]:
     if status_filter is None:
         torrents = client.torrents_info()
@@ -172,7 +179,7 @@ def remove_unregistered(
 
 
 def remove_completed(
-    client: qbittorrentapi.Client,
+    client: TorrentsClient,
     cfg: RemoveCompletedConfig,
     completed_first_seen: dict[str, datetime.datetime],
     dry_run: bool = False,

@@ -17,7 +17,7 @@ class FakeClient:
     def __init__(self, *categories: str):
         self.torrents = [SimpleNamespace(category=category) for category in categories]
 
-    def torrents_info(self):
+    def torrents_info(self, status_filter=None):
         return self.torrents
 
 
