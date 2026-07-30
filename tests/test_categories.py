@@ -6,6 +6,7 @@ import pytest
 from autobrr_remove.config import (
     Config,
     MaintainFreeSpaceConfig,
+    RemoveCompletedConfig,
     RemoveUnregisteredConfig,
     SetSeedLimitsConfig,
 )
@@ -53,7 +54,12 @@ def test_category_filtering(client, included, ignored, expected):
 
 @pytest.mark.parametrize(
     "config_type",
-    [RemoveUnregisteredConfig, MaintainFreeSpaceConfig, SetSeedLimitsConfig],
+    [
+        RemoveUnregisteredConfig,
+        RemoveCompletedConfig,
+        MaintainFreeSpaceConfig,
+        SetSeedLimitsConfig,
+    ],
 )
 def test_all_feature_configs_accept_both_filters(config_type):
     config = config_type(categories=["movies"], ignore_categories=["music"])

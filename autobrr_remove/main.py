@@ -15,6 +15,7 @@ from autobrr_remove.config import (
     Config,
     LoggingConfig,
     QBittorrentConfig,
+    RemoveCompletedConfig,
     RemoveUnregisteredConfig,
     category_is_included,
     load_config,
@@ -63,8 +64,12 @@ def torrents_in_categories(
     client: qbittorrentapi.Client,
     categories: list[str | None] | None,
     ignore_categories: list[str | None] | None = None,
+    status_filter: str | None = None,
 ) -> list[qbittorrentapi.TorrentDictionary]:
-    torrents = client.torrents_info()
+    if status_filter is None:
+        torrents = client.torrents_info()
+    else:
+        torrents = client.torrents_info(status_filter=status_filter)
     ignored = ignore_categories or []
 
     return [
@@ -77,6 +82,7 @@ def torrents_in_categories(
 def warn_category_overlaps(config: Config) -> None:
     feature_configs = (
         ("remove_unregistered", config.remove_unregistered),
+        ("remove_completed", config.remove_completed),
         ("maintain_free_space", config.maintain_free_space),
         ("set_seed_limits", config.set_seed_limits),
     )
@@ -163,6 +169,63 @@ def remove_unregistered(
     for torrent_hash in stale_hashes:
         log.debug(f"torrent {torrent_hash[-6:]} is no longer unregistered, removing from tracking")
         unregistered_first_seen.pop(torrent_hash, None)
+
+
+def remove_completed(
+    client: qbittorrentapi.Client,
+    cfg: RemoveCompletedConfig,
+    completed_first_seen: dict[str, datetime.datetime],
+    dry_run: bool = False,
+) -> None:
+    log.info("checking for completed torrents...")
+
+    torrents = torrents_in_categories(
+        client,
+        cfg.categories,
+        cfg.ignore_categories,
+        status_filter="completed",
+    )
+    now = datetime.datetime.now()
+    delay = datetime.timedelta(minutes=cfg.delay_minutes)
+    currently_completed = {torrent.hash for torrent in torrents}
+
+    for torrent in torrents:
+        log.debug(f"checking torrent {torrent.hash[-6:]}: {torrent.name} ({torrent.state})")
+
+        if torrent.hash not in completed_first_seen:
+            completed_first_seen[torrent.hash] = now
+            log.debug(
+                f"first time seeing {torrent.hash[-6:]} as completed, "
+                f"will remove after {cfg.delay_minutes} minutes"
+            )
+
+        first_seen = completed_first_seen[torrent.hash]
+        time_completed = now - first_seen
+
+        if time_completed < delay:
+            remaining = delay - time_completed
+            log.debug(
+                f"torrent {torrent.hash[-6:]} completed for {time_completed}, "
+                f"waiting {remaining} more before removal"
+            )
+            continue
+
+        delete_files = cfg.on_delete == "RemoveWithContent"
+        action = "[dry-run] would remove" if dry_run else "removing"
+        log.info(
+            f"{action} completed torrent {torrent.hash[-6:]}: {torrent.name=} "
+            f"{torrent.state=} {torrent.size / 1024**3:.3f} GiB "
+            f"(completed for {time_completed}, {cfg.on_delete=})"
+        )
+
+        if not dry_run:
+            torrent.delete(delete_files=delete_files)
+            completed_first_seen.pop(torrent.hash, None)
+
+    stale_hashes = set(completed_first_seen) - currently_completed
+    for torrent_hash in stale_hashes:
+        log.debug(f"torrent {torrent_hash[-6:]} is no longer completed, removing from tracking")
+        completed_first_seen.pop(torrent_hash, None)
 
 
 def set_seed_limits(
@@ -308,11 +371,18 @@ def run(
     config: Config,
     unregistered_first_seen: dict[str, datetime.datetime],
     dry_run: bool = False,
+    completed_first_seen: dict[str, datetime.datetime] | None = None,
 ) -> None:
     log.info("starting run...")
 
+    if completed_first_seen is None:
+        completed_first_seen = {}
+
     if config.remove_unregistered.enabled:
         remove_unregistered(client, config.remove_unregistered, unregistered_first_seen, dry_run)
+
+    if config.remove_completed.enabled:
+        remove_completed(client, config.remove_completed, completed_first_seen, dry_run)
 
     if config.set_seed_limits.enabled:
         set_seed_limits(client, config, dry_run)
@@ -356,16 +426,29 @@ def main():
         log.info("dry-run mode: no torrents will be deleted")
 
     unregistered_first_seen: dict[str, datetime.datetime] = {}
+    completed_first_seen: dict[str, datetime.datetime] = {}
 
     if not args.daemon:
-        run(client, config, unregistered_first_seen, args.dry_run)
+        run(
+            client,
+            config,
+            unregistered_first_seen,
+            dry_run=args.dry_run,
+            completed_first_seen=completed_first_seen,
+        )
         return
 
     log.info(f"running in daemon mode, checking every {config.interval_seconds} seconds...")
 
     while True:
         try:
-            run(client, config, unregistered_first_seen, args.dry_run)
+            run(
+                client,
+                config,
+                unregistered_first_seen,
+                dry_run=args.dry_run,
+                completed_first_seen=completed_first_seen,
+            )
         except Exception as e:
             log.error(f"error during run: {e}", exc_info=True)
 

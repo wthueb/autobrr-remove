@@ -1,0 +1,113 @@
+import datetime
+from types import SimpleNamespace
+from unittest.mock import Mock
+
+import pytest
+from pydantic import ValidationError
+
+from autobrr_remove.config import RemoveCompletedConfig
+from autobrr_remove.main import remove_completed
+
+
+class FakeClient:
+    def __init__(self, torrents):
+        self.torrents = torrents
+        self.status_filters = []
+
+    def torrents_info(self, status_filter=None):
+        self.status_filters.append(status_filter)
+        return self.torrents
+
+
+def make_torrent(category="movies"):
+    return SimpleNamespace(
+        hash="1234567890abcdef",
+        name="completed torrent",
+        state="uploading",
+        size=1024**3,
+        category=category,
+        delete=Mock(),
+    )
+
+
+def test_first_observation_starts_delay_without_removing():
+    torrent = make_torrent()
+    client = FakeClient([torrent])
+    first_seen = {}
+
+    remove_completed(client, RemoveCompletedConfig(delay_minutes=10), first_seen)
+
+    assert client.status_filters == ["completed"]
+    assert torrent.hash in first_seen
+    torrent.delete.assert_not_called()
+
+
+def test_zero_delay_removes_on_first_observation():
+    torrent = make_torrent()
+    client = FakeClient([torrent])
+    first_seen = {}
+
+    remove_completed(client, RemoveCompletedConfig(), first_seen)
+
+    torrent.delete.assert_called_once_with(delete_files=False)
+    assert torrent.hash not in first_seen
+
+
+@pytest.mark.parametrize(
+    ("on_delete", "delete_files"),
+    [("Remove", False), ("RemoveWithContent", True)],
+)
+def test_removes_after_delay_with_configured_delete_action(on_delete, delete_files):
+    torrent = make_torrent()
+    client = FakeClient([torrent])
+    first_seen = {torrent.hash: datetime.datetime.now() - datetime.timedelta(minutes=11)}
+    config = RemoveCompletedConfig(delay_minutes=10, on_delete=on_delete)
+
+    remove_completed(client, config, first_seen)
+
+    torrent.delete.assert_called_once_with(delete_files=delete_files)
+    assert torrent.hash not in first_seen
+
+
+def test_dry_run_does_not_remove_torrent_or_tracking_state():
+    torrent = make_torrent()
+    client = FakeClient([torrent])
+    observed_at = datetime.datetime.now() - datetime.timedelta(minutes=11)
+    first_seen = {torrent.hash: observed_at}
+
+    remove_completed(
+        client,
+        RemoveCompletedConfig(delay_minutes=10, on_delete="RemoveWithContent"),
+        first_seen,
+        dry_run=True,
+    )
+
+    torrent.delete.assert_not_called()
+    assert first_seen == {torrent.hash: observed_at}
+
+
+def test_category_filters_apply_before_tracking():
+    torrent = make_torrent(category="upload")
+    client = FakeClient([torrent])
+    first_seen = {}
+    config = RemoveCompletedConfig(categories=["movies"], ignore_categories=["upload"])
+
+    remove_completed(client, config, first_seen)
+
+    assert first_seen == {}
+    torrent.delete.assert_not_called()
+
+
+def test_torrent_no_longer_completed_is_removed_from_tracking():
+    client = FakeClient([])
+    first_seen = {"1234567890abcdef": datetime.datetime.now()}
+
+    remove_completed(client, RemoveCompletedConfig(delay_minutes=10), first_seen)
+
+    assert first_seen == {}
+
+
+@pytest.mark.parametrize("on_delete", ["Default", "Stop"])
+def test_on_delete_rejects_unsupported_actions(on_delete):
+    with pytest.raises(ValidationError):
+        RemoveCompletedConfig(on_delete=on_delete)

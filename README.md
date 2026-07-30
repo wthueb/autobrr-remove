@@ -12,13 +12,17 @@ Configuration lives in a YAML file (validated with pydantic on startup). Copy
 cp config.example.yaml config.yaml
 ```
 
-The config is organized into three independent features, each toggled with its
+The config is organized into four independent features, each toggled with its
 own `enabled` flag:
 
 - **`remove_unregistered`** — deletes torrents whose tracker reports them as
   "unregistered", subject to its category filters.
   Waits `delay_minutes` after first seeing the status before deleting (some
   trackers report it transiently).
+- **`remove_completed`** — removes torrents after they have continuously appeared
+  as completed for `delay_minutes`. `on_delete` controls whether downloaded files
+  are kept (`Remove`) or deleted (`RemoveWithContent`). First-seen times are held
+  in memory and reset when autobrr-remove restarts.
 - **`maintain_free_space`** — once free space drops below
   `free_space_threshold_gibi`, removes eligible torrents matching its category filters
   (lowest upload rate first) until the threshold is met.

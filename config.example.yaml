@@ -27,6 +27,19 @@ remove_unregistered:
     - null
     - upload
 
+# remove torrents after they have continuously appeared as completed for
+# `delay_minutes`. tracking starts when autobrr-remove first observes completion.
+remove_completed:
+  enabled: false
+  delay_minutes: 15
+  # optionally, only consider torrents in these categories; omit or set to null
+  # to consider every category. a list entry of null represents no category.
+  categories: null
+  # always exclude these categories, even if they also appear in categories
+  ignore_categories: []
+  # Remove keeps downloaded files; RemoveWithContent deletes them
+  on_delete: Remove
+
 # once free space drops below `free_space_threshold_gibi`, remove eligible torrents
 # (lowest upload rate first) until the threshold is met. a torrent is eligible once it
 # has seeded longer than its tracker's `seed_time_minutes` OR reached its `ratio`.
