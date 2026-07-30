@@ -25,6 +25,17 @@ SeedTimeMinutes = Annotated[int, AfterValidator(_check_limit)]
 Ratio = Annotated[float, AfterValidator(_check_limit)]
 
 
+def category_is_included(
+    category: str | None,
+    categories: list[str | None] | None,
+    ignore_categories: list[str | None],
+) -> bool:
+    """Return whether a qBittorrent category passes include/exclude filters."""
+    # qBittorrent reports "" for torrents without a category, configured here as null.
+    category = category or None
+    return (categories is None or category in categories) and category not in ignore_categories
+
+
 class QBittorrentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -67,28 +78,36 @@ class LoggingConfig(BaseModel):
         return value
 
 
-class RemoveUnregisteredConfig(BaseModel):
+class CategoryFilterConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool = False
+    # if set, only torrents in these categories are considered; a null entry
+    # represents torrents without a category
+    categories: list[str | None] | None = None
+    # torrents in these categories are never considered; a null entry represents
+    # torrents without a category
+    ignore_categories: list[str | None] = Field(default_factory=list)
+
+    def includes_category(self, category: str | None) -> bool:
+        return category_is_included(category, self.categories, self.ignore_categories)
+
+    @property
+    def overlapping_categories(self) -> list[str | None]:
+        if self.categories is None:
+            return []
+
+        # Preserve the configured order while suppressing duplicate warnings.
+        return list(dict.fromkeys(c for c in self.categories if c in self.ignore_categories))
+
+
+class RemoveUnregisteredConfig(CategoryFilterConfig):
     # wait this long after a tracker first reports a torrent as "unregistered"
     # before deleting it (some trackers report it transiently)
     delay_minutes: int = Field(default=0, ge=0)
-    # torrents in these categories are never removed; a null entry means
-    # torrents without a category (useful for torrents being uploaded)
-    ignore_categories: list[str | None] = Field(default_factory=list)
-
-    def ignores(self, category: str) -> bool:
-        # qBittorrent reports "" for torrents without a category, configured here as null
-        return (category or None) in self.ignore_categories
 
 
-class MaintainFreeSpaceConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    enabled: bool = False
-    # only torrents in one of these categories are considered; null to consider all
-    categories: list[str] | None = None
+class MaintainFreeSpaceConfig(CategoryFilterConfig):
     free_space_threshold_gibi: int | None = Field(default=None, ge=0)
 
     @property
@@ -104,12 +123,7 @@ class MaintainFreeSpaceConfig(BaseModel):
         return self
 
 
-class SetSeedLimitsConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    enabled: bool = False
-    # only torrents in one of these categories are considered; null to consider all
-    categories: list[str] | None = None
+class SetSeedLimitsConfig(CategoryFilterConfig):
     # applied when a torrent's tracker is not configured under `trackers`; both must
     # be non-null for the fallback to apply, otherwise such torrents are left untouched.
     # use -1 for unlimited (as with trackers).

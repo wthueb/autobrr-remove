@@ -16,17 +16,24 @@ The config is organized into three independent features, each toggled with its
 own `enabled` flag:
 
 - **`remove_unregistered`** — deletes torrents whose tracker reports them as
-  "unregistered", across all categories except those in `ignore_categories`
-  (a `null` entry ignores torrents without a category, useful when uploading).
+  "unregistered", subject to its category filters.
   Waits `delay_minutes` after first seeing the status before deleting (some
   trackers report it transiently).
 - **`maintain_free_space`** — once free space drops below
-  `free_space_threshold_gibi`, removes eligible torrents in `categories`
+  `free_space_threshold_gibi`, removes eligible torrents matching its category filters
   (lowest upload rate first) until the threshold is met.
-- **`set_seed_limits`** — sets qBittorrent share limits on torrents in
-  `categories` that don't have any yet, so qBittorrent removes them once a limit
+- **`set_seed_limits`** — sets qBittorrent share limits on matching torrents that
+  don't have any yet, so qBittorrent removes them once a limit
   is reached (`on_delete`: `Remove` keeps files, `RemoveWithContent` deletes
   them, `Stop` pauses).
+
+Each feature supports the same optional category filters. With only `categories`,
+only the listed categories are checked. With only `ignore_categories`, every
+category except the listed ones is checked. When both are set, the feature checks
+only categories included by `categories` and not excluded by `ignore_categories`.
+An overlap produces a startup warning and `ignore_categories` takes precedence.
+Omit `categories` or set it to `null` to include every category; a `null` entry
+inside either list represents torrents with no category.
 
 Seed time and ratio limits are defined **per tracker** under `trackers`; a
 torrent is matched to a tracker by its announce hostname. A torrent has met a

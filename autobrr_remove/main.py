@@ -16,6 +16,7 @@ from autobrr_remove.config import (
     LoggingConfig,
     QBittorrentConfig,
     RemoveUnregisteredConfig,
+    category_is_included,
     load_config,
 )
 
@@ -60,14 +61,38 @@ def build_client(cfg: QBittorrentConfig) -> qbittorrentapi.Client:
 
 def torrents_in_categories(
     client: qbittorrentapi.Client,
-    categories: list[str] | None,
+    categories: list[str | None] | None,
+    ignore_categories: list[str | None] | None = None,
 ) -> list[qbittorrentapi.TorrentDictionary]:
     torrents = client.torrents_info()
+    ignored = ignore_categories or []
 
-    if categories is None:
-        return list(torrents)
+    return [
+        torrent
+        for torrent in torrents
+        if category_is_included(torrent.category, categories, ignored)
+    ]
 
-    return [t for t in torrents if t.category in categories]
+
+def warn_category_overlaps(config: Config) -> None:
+    feature_configs = (
+        ("remove_unregistered", config.remove_unregistered),
+        ("maintain_free_space", config.maintain_free_space),
+        ("set_seed_limits", config.set_seed_limits),
+    )
+
+    for feature_name, cfg in feature_configs:
+        overlap = cfg.overlapping_categories
+        if not overlap:
+            continue
+
+        categories = ", ".join(
+            "null" if category is None else repr(category) for category in overlap
+        )
+        log.warning(
+            f"{feature_name}: categories and ignore_categories both contain {categories}; "
+            "ignore_categories takes precedence"
+        )
 
 
 def remove_unregistered(
@@ -78,7 +103,7 @@ def remove_unregistered(
 ) -> None:
     log.info("checking for unregistered torrents...")
 
-    torrents = client.torrents_info()
+    torrents = torrents_in_categories(client, cfg.categories, cfg.ignore_categories)
     now = datetime.datetime.now()
 
     delay = datetime.timedelta(minutes=cfg.delay_minutes)
@@ -87,13 +112,6 @@ def remove_unregistered(
 
     for torrent in torrents:
         log.debug(f"checking torrent {torrent.hash[-6:]}: {torrent.name} ({torrent.state})")
-
-        if cfg.ignores(torrent.category):
-            log.debug(
-                f"torrent {torrent.hash[-6:]} is in ignored category "
-                f"{torrent.category!r}, skipping check"
-            )
-            continue
 
         trackers = torrent.trackers
 
@@ -156,7 +174,7 @@ def set_seed_limits(
 
     log.info("setting seed limits...")
 
-    torrents = torrents_in_categories(client, cfg.categories)
+    torrents = torrents_in_categories(client, cfg.categories, cfg.ignore_categories)
 
     for torrent in torrents:
         # -2 means "use the global limit", i.e. the torrent has no explicit limit set.
@@ -208,9 +226,10 @@ def maintain_free_space(
 ) -> None:
     log.info("maintaining free space...")
 
-    torrents = torrents_in_categories(client, config.maintain_free_space.categories)
+    cfg = config.maintain_free_space
+    torrents = torrents_in_categories(client, cfg.categories, cfg.ignore_categories)
     free_space = client.sync_maindata().server_state.free_space_on_disk
-    threshold = config.maintain_free_space.free_space_threshold_bytes
+    threshold = cfg.free_space_threshold_bytes
 
     if free_space > threshold:
         log.info(
@@ -329,6 +348,7 @@ def main():
         raise SystemExit(f"invalid config file {args.config}:\n{e}")
 
     setup_logging(config.logging)
+    warn_category_overlaps(config)
 
     client = build_client(config.qbittorrent)
 

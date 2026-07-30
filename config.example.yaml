@@ -12,12 +12,15 @@ logging:
   # file: /var/log/autobrr-remove/autobrr-remove.log
   # file_count: 20
 
-# delete torrents whose tracker reports them as "unregistered" (any category).
+# delete torrents whose tracker reports them as "unregistered".
 # waits `delay_minutes` after first seeing the status before deleting, since some
 # trackers report it transiently.
 remove_unregistered:
   enabled: true
   delay_minutes: 15
+  # optionally, only consider torrents in these categories; omit or set to null
+  # to consider every category. a list entry of null represents no category.
+  categories: null
   # never remove torrents in these categories; a `null` entry means torrents
   # without a category (useful for torrents you are uploading)
   ignore_categories:
@@ -29,9 +32,11 @@ remove_unregistered:
 # has seeded longer than its tracker's `seed_time_minutes` OR reached its `ratio`.
 maintain_free_space:
   enabled: true
-  # only torrents in one of these categories are considered (use `null` for all)
+  # only torrents in one of these categories are considered (set to null for all)
   categories:
     - autobrr
+  # always exclude these categories, even if they also appear in categories
+  ignore_categories: []
   free_space_threshold_gibi: 1024
 
 # set qBittorrent share limits on torrents that don't have any yet, so qBittorrent
@@ -40,9 +45,11 @@ maintain_free_space:
 # such torrents are left untouched).
 set_seed_limits:
   enabled: true
-  # only torrents in one of these categories are considered (use `null` for all)
+  # only torrents in one of these categories are considered (set to null for all)
   categories:
     - cross
+  # always exclude these categories, even if they also appear in categories
+  ignore_categories: []
   # use -1 for unlimited (same as trackers below)
   default_seed_time_minutes: null
   default_ratio: null
