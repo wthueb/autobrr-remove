@@ -18,13 +18,15 @@ from autobrr_remove.config import (
     Config,
     LoggingConfig,
     QBittorrentConfig,
-    RemoveCompletedConfig,
+    RemoveStoppedConfig,
     RemoveUnregisteredConfig,
     category_is_included,
     load_config,
 )
 
 log = logging.getLogger("autobrr_remove")
+
+STOPPED_COMPLETED_STATES = {"pausedUP", "stoppedUP"}
 
 
 class TorrentsClient(Protocol):
@@ -89,7 +91,7 @@ def torrents_in_categories(
 def warn_category_overlaps(config: Config) -> None:
     feature_configs = (
         ("remove_unregistered", config.remove_unregistered),
-        ("remove_completed", config.remove_completed),
+        ("remove_stopped", config.remove_stopped),
         ("maintain_free_space", config.maintain_free_space),
         ("set_seed_limits", config.set_seed_limits),
     )
@@ -178,41 +180,44 @@ def remove_unregistered(
         unregistered_first_seen.pop(torrent_hash, None)
 
 
-def remove_completed(
+def remove_stopped(
     client: TorrentsClient,
-    cfg: RemoveCompletedConfig,
-    completed_first_seen: dict[str, datetime.datetime],
+    cfg: RemoveStoppedConfig,
+    stopped_first_seen: dict[str, datetime.datetime],
     dry_run: bool = False,
 ) -> None:
-    log.info("checking for completed torrents...")
+    log.info("checking for stopped torrents...")
 
-    torrents = torrents_in_categories(
+    completed_torrents = torrents_in_categories(
         client,
         cfg.categories,
         cfg.ignore_categories,
         status_filter="completed",
     )
+    torrents = [
+        torrent for torrent in completed_torrents if torrent.state in STOPPED_COMPLETED_STATES
+    ]
     now = datetime.datetime.now()
     delay = datetime.timedelta(minutes=cfg.delay_minutes)
-    currently_completed = {torrent.hash for torrent in torrents}
+    currently_stopped = {torrent.hash for torrent in torrents}
 
     for torrent in torrents:
         log.debug(f"checking torrent {torrent.hash[-6:]}: {torrent.name} ({torrent.state})")
 
-        if torrent.hash not in completed_first_seen:
-            completed_first_seen[torrent.hash] = now
+        if torrent.hash not in stopped_first_seen:
+            stopped_first_seen[torrent.hash] = now
             log.debug(
-                f"first time seeing {torrent.hash[-6:]} as completed, "
+                f"first time seeing {torrent.hash[-6:]} as completed and stopped, "
                 f"will remove after {cfg.delay_minutes} minutes"
             )
 
-        first_seen = completed_first_seen[torrent.hash]
-        time_completed = now - first_seen
+        first_seen = stopped_first_seen[torrent.hash]
+        time_stopped = now - first_seen
 
-        if time_completed < delay:
-            remaining = delay - time_completed
+        if time_stopped < delay:
+            remaining = delay - time_stopped
             log.debug(
-                f"torrent {torrent.hash[-6:]} completed for {time_completed}, "
+                f"torrent {torrent.hash[-6:]} completed and stopped for {time_stopped}, "
                 f"waiting {remaining} more before removal"
             )
             continue
@@ -220,19 +225,22 @@ def remove_completed(
         delete_files = cfg.on_delete == "RemoveWithContent"
         action = "[dry-run] would remove" if dry_run else "removing"
         log.info(
-            f"{action} completed torrent {torrent.hash[-6:]}: {torrent.name=} "
+            f"{action} stopped torrent {torrent.hash[-6:]}: {torrent.name=} "
             f"{torrent.state=} {torrent.size / 1024**3:.3f} GiB "
-            f"(completed for {time_completed}, {cfg.on_delete=})"
+            f"(stopped for {time_stopped}, {cfg.on_delete=})"
         )
 
         if not dry_run:
             torrent.delete(delete_files=delete_files)
-            completed_first_seen.pop(torrent.hash, None)
+            stopped_first_seen.pop(torrent.hash, None)
 
-    stale_hashes = set(completed_first_seen) - currently_completed
+    stale_hashes = set(stopped_first_seen) - currently_stopped
     for torrent_hash in stale_hashes:
-        log.debug(f"torrent {torrent_hash[-6:]} is no longer completed, removing from tracking")
-        completed_first_seen.pop(torrent_hash, None)
+        log.debug(
+            f"torrent {torrent_hash[-6:]} is no longer completed and stopped, "
+            "removing from tracking"
+        )
+        stopped_first_seen.pop(torrent_hash, None)
 
 
 def set_seed_limits(
@@ -378,18 +386,18 @@ def run(
     config: Config,
     unregistered_first_seen: dict[str, datetime.datetime],
     dry_run: bool = False,
-    completed_first_seen: dict[str, datetime.datetime] | None = None,
+    stopped_first_seen: dict[str, datetime.datetime] | None = None,
 ) -> None:
     log.info("starting run...")
 
-    if completed_first_seen is None:
-        completed_first_seen = {}
+    if stopped_first_seen is None:
+        stopped_first_seen = {}
 
     if config.remove_unregistered.enabled:
         remove_unregistered(client, config.remove_unregistered, unregistered_first_seen, dry_run)
 
-    if config.remove_completed.enabled:
-        remove_completed(client, config.remove_completed, completed_first_seen, dry_run)
+    if config.remove_stopped.enabled:
+        remove_stopped(client, config.remove_stopped, stopped_first_seen, dry_run)
 
     if config.set_seed_limits.enabled:
         set_seed_limits(client, config, dry_run)
@@ -433,7 +441,7 @@ def main():
         log.info("dry-run mode: no torrents will be deleted")
 
     unregistered_first_seen: dict[str, datetime.datetime] = {}
-    completed_first_seen: dict[str, datetime.datetime] = {}
+    stopped_first_seen: dict[str, datetime.datetime] = {}
 
     if not args.daemon:
         run(
@@ -441,7 +449,7 @@ def main():
             config,
             unregistered_first_seen,
             dry_run=args.dry_run,
-            completed_first_seen=completed_first_seen,
+            stopped_first_seen=stopped_first_seen,
         )
         return
 
@@ -454,7 +462,7 @@ def main():
                 config,
                 unregistered_first_seen,
                 dry_run=args.dry_run,
-                completed_first_seen=completed_first_seen,
+                stopped_first_seen=stopped_first_seen,
             )
         except Exception as e:
             log.error(f"error during run: {e}", exc_info=True)

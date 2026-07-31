@@ -19,10 +19,11 @@ own `enabled` flag:
   "unregistered", subject to its category filters.
   Waits `delay_minutes` after first seeing the status before deleting (some
   trackers report it transiently).
-- **`remove_completed`** — removes torrents after they have continuously appeared
-  as completed for `delay_minutes`. `on_delete` controls whether downloaded files
-  are kept (`Remove`) or deleted (`RemoveWithContent`). First-seen times are held
-  in memory and reset when autobrr-remove restarts.
+- **`remove_stopped`** — removes torrents after they have continuously appeared
+  as completed and stopped for `delay_minutes`; actively seeding torrents are left
+  alone. `on_delete` controls whether downloaded files are kept (`Remove`) or
+  deleted (`RemoveWithContent`). First-seen times are held in memory and reset when
+  autobrr-remove restarts.
 - **`maintain_free_space`** — once free space drops below
   `free_space_threshold_gibi`, removes eligible torrents matching its category filters
   (lowest upload rate first) until the threshold is met.

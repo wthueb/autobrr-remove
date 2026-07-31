@@ -5,8 +5,8 @@ from unittest.mock import Mock
 import pytest
 from pydantic import ValidationError
 
-from autobrr_remove.config import RemoveCompletedConfig
-from autobrr_remove.main import remove_completed
+from autobrr_remove.config import RemoveStoppedConfig
+from autobrr_remove.main import remove_stopped
 
 
 class FakeClient:
@@ -19,11 +19,11 @@ class FakeClient:
         return self.torrents
 
 
-def make_torrent(category="movies"):
+def make_torrent(category="movies", state="stoppedUP"):
     return SimpleNamespace(
         hash="1234567890abcdef",
         name="completed torrent",
-        state="uploading",
+        state=state,
         size=1024**3,
         category=category,
         delete=Mock(),
@@ -35,7 +35,7 @@ def test_first_observation_starts_delay_without_removing():
     client = FakeClient([torrent])
     first_seen = {}
 
-    remove_completed(client, RemoveCompletedConfig(delay_minutes=10), first_seen)
+    remove_stopped(client, RemoveStoppedConfig(delay_minutes=10), first_seen)
 
     assert client.status_filters == ["completed"]
     assert torrent.hash in first_seen
@@ -47,10 +47,44 @@ def test_zero_delay_removes_on_first_observation():
     client = FakeClient([torrent])
     first_seen = {}
 
-    remove_completed(client, RemoveCompletedConfig(), first_seen)
+    remove_stopped(client, RemoveStoppedConfig(), first_seen)
 
     torrent.delete.assert_called_once_with(delete_files=False)
     assert torrent.hash not in first_seen
+
+
+@pytest.mark.parametrize("state", ["uploading", "stalledUP", "forcedUP", "queuedUP"])
+def test_seeding_torrent_is_not_tracked_or_removed(state):
+    torrent = make_torrent(state=state)
+    client = FakeClient([torrent])
+    first_seen = {}
+
+    remove_stopped(client, RemoveStoppedConfig(), first_seen)
+
+    assert first_seen == {}
+    torrent.delete.assert_not_called()
+
+
+def test_resumed_seeding_torrent_resets_stopped_delay():
+    torrent = make_torrent(state="uploading")
+    client = FakeClient([torrent])
+    first_seen = {torrent.hash: datetime.datetime.now() - datetime.timedelta(minutes=11)}
+
+    remove_stopped(client, RemoveStoppedConfig(delay_minutes=10), first_seen)
+
+    assert first_seen == {}
+    torrent.delete.assert_not_called()
+
+
+@pytest.mark.parametrize("state", ["pausedUP", "stoppedUP"])
+def test_qbittorrent_stopped_states_are_removed(state):
+    torrent = make_torrent(state=state)
+    client = FakeClient([torrent])
+    first_seen = {}
+
+    remove_stopped(client, RemoveStoppedConfig(), first_seen)
+
+    torrent.delete.assert_called_once_with(delete_files=False)
 
 
 @pytest.mark.parametrize(
@@ -61,9 +95,9 @@ def test_removes_after_delay_with_configured_delete_action(on_delete, delete_fil
     torrent = make_torrent()
     client = FakeClient([torrent])
     first_seen = {torrent.hash: datetime.datetime.now() - datetime.timedelta(minutes=11)}
-    config = RemoveCompletedConfig(delay_minutes=10, on_delete=on_delete)
+    config = RemoveStoppedConfig(delay_minutes=10, on_delete=on_delete)
 
-    remove_completed(client, config, first_seen)
+    remove_stopped(client, config, first_seen)
 
     torrent.delete.assert_called_once_with(delete_files=delete_files)
     assert torrent.hash not in first_seen
@@ -75,9 +109,9 @@ def test_dry_run_does_not_remove_torrent_or_tracking_state():
     observed_at = datetime.datetime.now() - datetime.timedelta(minutes=11)
     first_seen = {torrent.hash: observed_at}
 
-    remove_completed(
+    remove_stopped(
         client,
-        RemoveCompletedConfig(delay_minutes=10, on_delete="RemoveWithContent"),
+        RemoveStoppedConfig(delay_minutes=10, on_delete="RemoveWithContent"),
         first_seen,
         dry_run=True,
     )
@@ -90,19 +124,19 @@ def test_category_filters_apply_before_tracking():
     torrent = make_torrent(category="upload")
     client = FakeClient([torrent])
     first_seen = {}
-    config = RemoveCompletedConfig(categories=["movies"], ignore_categories=["upload"])
+    config = RemoveStoppedConfig(categories=["movies"], ignore_categories=["upload"])
 
-    remove_completed(client, config, first_seen)
+    remove_stopped(client, config, first_seen)
 
     assert first_seen == {}
     torrent.delete.assert_not_called()
 
 
-def test_torrent_no_longer_completed_is_removed_from_tracking():
+def test_torrent_no_longer_stopped_is_removed_from_tracking():
     client = FakeClient([])
     first_seen = {"1234567890abcdef": datetime.datetime.now()}
 
-    remove_completed(client, RemoveCompletedConfig(delay_minutes=10), first_seen)
+    remove_stopped(client, RemoveStoppedConfig(delay_minutes=10), first_seen)
 
     assert first_seen == {}
 
@@ -110,4 +144,4 @@ def test_torrent_no_longer_completed_is_removed_from_tracking():
 @pytest.mark.parametrize("on_delete", ["Default", "Stop"])
 def test_on_delete_rejects_unsupported_actions(on_delete):
     with pytest.raises(ValidationError):
-        RemoveCompletedConfig(on_delete=on_delete)
+        RemoveStoppedConfig(on_delete=on_delete)

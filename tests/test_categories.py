@@ -6,7 +6,7 @@ import pytest
 from autobrr_remove.config import (
     Config,
     MaintainFreeSpaceConfig,
-    RemoveCompletedConfig,
+    RemoveStoppedConfig,
     RemoveUnregisteredConfig,
     SetSeedLimitsConfig,
 )
@@ -56,7 +56,7 @@ def test_category_filtering(client, included, ignored, expected):
     "config_type",
     [
         RemoveUnregisteredConfig,
-        RemoveCompletedConfig,
+        RemoveStoppedConfig,
         MaintainFreeSpaceConfig,
         SetSeedLimitsConfig,
     ],

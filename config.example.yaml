@@ -27,9 +27,10 @@ remove_unregistered:
     - null
     - upload
 
-# remove torrents after they have continuously appeared as completed for
-# `delay_minutes`. tracking starts when autobrr-remove first observes completion.
-remove_completed:
+# remove torrents after they have continuously appeared as completed and stopped for
+# `delay_minutes`. actively seeding torrents are left alone; tracking starts when
+# autobrr-remove first observes a completed torrent in a stopped state.
+remove_stopped:
   enabled: false
   delay_minutes: 15
   # optionally, only consider torrents in these categories; omit or set to null

@@ -107,8 +107,8 @@ class RemoveUnregisteredConfig(CategoryFilterConfig):
     delay_minutes: int = Field(default=0, ge=0)
 
 
-class RemoveCompletedConfig(CategoryFilterConfig):
-    # wait this long after first observing a torrent as completed before deleting it
+class RemoveStoppedConfig(CategoryFilterConfig):
+    # wait this long after first observing a torrent as completed and stopped before deleting it
     delay_minutes: int = Field(default=0, ge=0)
     # Remove keeps downloaded content; RemoveWithContent deletes it
     on_delete: Literal["Remove", "RemoveWithContent"] = "Remove"
@@ -148,7 +148,7 @@ class Config(BaseModel):
     interval_seconds: int = Field(default=60, ge=1)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     remove_unregistered: RemoveUnregisteredConfig = Field(default_factory=RemoveUnregisteredConfig)
-    remove_completed: RemoveCompletedConfig = Field(default_factory=RemoveCompletedConfig)
+    remove_stopped: RemoveStoppedConfig = Field(default_factory=RemoveStoppedConfig)
     maintain_free_space: MaintainFreeSpaceConfig = Field(default_factory=MaintainFreeSpaceConfig)
     set_seed_limits: SetSeedLimitsConfig = Field(default_factory=SetSeedLimitsConfig)
 
