@@ -66,6 +66,7 @@ class LoggingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     level: str = "INFO"
+    format: Literal["logfmt", "json"] = "logfmt"
     file: pathlib.Path | None = None
     file_count: int = Field(default=20, ge=1)
 

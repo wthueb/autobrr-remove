@@ -1,7 +1,8 @@
-import logging
 from types import SimpleNamespace
 
 import pytest
+from structlog.contextvars import merge_contextvars
+from structlog.testing import capture_logs
 
 from autobrr_remove.config import (
     Config,
@@ -68,7 +69,7 @@ def test_all_feature_configs_accept_both_filters(config_type):
     assert config.ignore_categories == ["music"]
 
 
-def test_startup_warning_names_overlapping_categories(caplog):
+def test_startup_warning_names_overlapping_categories():
     config = Config.model_validate(
         {
             "qbittorrent": {"host": "localhost", "username": "user", "password": "pass"},
@@ -87,10 +88,14 @@ def test_startup_warning_names_overlapping_categories(caplog):
         }
     )
 
-    with caplog.at_level(logging.WARNING, logger="autobrr_remove"):
+    with capture_logs(processors=[merge_contextvars]) as logs:
         warn_category_overlaps(config)
 
-    assert len(caplog.messages) == 1
-    assert "remove_unregistered" in caplog.messages[0]
-    assert "'music', null" in caplog.messages[0]
-    assert "ignore_categories takes precedence" in caplog.messages[0]
+    assert logs == [
+        {
+            "event": "categories overlap with ignore_categories",
+            "job": "remove_unregistered",
+            "log_level": "warning",
+            "overlapping_categories": ["music", None],
+        }
+    ]

@@ -9,6 +9,8 @@ interval_seconds: 60
 
 logging:
   level: INFO
+  # logfmt (default) or json
+  format: logfmt
   # file: /var/log/autobrr-remove/autobrr-remove.log
   # file_count: 20
 

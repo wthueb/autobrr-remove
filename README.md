@@ -66,6 +66,19 @@ autobrr-remove --config config.yaml --dry-run
 The config path defaults to `config.yaml` in the working directory, or the
 `CONFIG_FILE` environment variable if set.
 
+### Logging
+
+Logs are written to stdout as logfmt by default. Set `logging.format: json` for
+JSON output. Both formats use the same core fields as wi1-bot: `ts`, `level`,
+`logger`, `src` (`func_name:lineno`), and `msg`.
+
+Log messages are static event names. Variable data is carried in scoped context
+fields: each feature run binds `job`, torrent operations bind `torrent`,
+`torrent_name`, `torrent_state`, and `torrent_size_bytes`, and individual
+actions add fields such as durations, limits, and `dry_run`. Context is
+automatically restored when that scope finishes. The optional rotating
+`logging.file` output uses the same selected format.
+
 ### Docker
 
 `compose.yaml` mounts `./config.yaml` into the container at

@@ -1,12 +1,15 @@
 import datetime
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import Mock
 
 import pytest
+import qbittorrentapi
 from pydantic import ValidationError
+from structlog.contextvars import get_contextvars
 
-from autobrr_remove.config import RemoveStoppedConfig
-from autobrr_remove.main import remove_stopped
+from autobrr_remove.config import Config, RemoveStoppedConfig
+from autobrr_remove.main import remove_stopped, run
 
 
 class FakeClient:
@@ -145,3 +148,39 @@ def test_torrent_no_longer_stopped_is_removed_from_tracking():
 def test_on_delete_rejects_unsupported_actions(on_delete):
     with pytest.raises(ValidationError):
         RemoveStoppedConfig(on_delete=on_delete)
+
+
+def test_run_binds_job_and_torrent_context_during_removal():
+    torrent = make_torrent()
+    observed_context = {}
+    torrent.delete.side_effect = lambda **_kwargs: observed_context.update(get_contextvars())
+    client = FakeClient([torrent])
+    config = Config.model_validate(
+        {
+            "qbittorrent": {"host": "localhost", "username": "user", "password": "pass"},
+            "trackers": [
+                {
+                    "name": "example",
+                    "hosts": ["tracker.example.com"],
+                    "seed_time_minutes": 1,
+                    "ratio": 1,
+                }
+            ],
+            "remove_stopped": {"enabled": True},
+        }
+    )
+
+    run(cast(qbittorrentapi.Client, client), config, {})
+
+    assert observed_context == {
+        "delete_files": False,
+        "dry_run": False,
+        "job": "remove_stopped",
+        "on_delete": "Remove",
+        "stopped_for_seconds": 0.0,
+        "torrent": torrent.hash,
+        "torrent_name": torrent.name,
+        "torrent_size_bytes": torrent.size,
+        "torrent_state": torrent.state,
+    }
+    assert get_contextvars() == {}
