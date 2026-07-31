@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.1](https://github.com/wthueb/autobrr-remove/compare/v3.2.0...v3.2.1) (2026-07-31)
+
+
+### Bug Fixes
+
+* remove_completed -&gt; remove_stopped ([4257cc5](https://github.com/wthueb/autobrr-remove/commit/4257cc553b0c367d13c9685dbdc6a62f17b51fb3))
+
 ## [3.2.0](https://github.com/wthueb/autobrr-remove/compare/v3.1.1...v3.2.0) (2026-07-30)
 
 
