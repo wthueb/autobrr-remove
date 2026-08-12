@@ -3,17 +3,85 @@ name: ci
 on:
   push:
     branches:
-      - master
+      - '**'
+      - '!release-please--**'
     tags:
       - 'v*'
   pull_request: {}
+  workflow_dispatch: {}
 
 permissions:
-  packages: write
   contents: read
 
+concurrency:
+  group: >-
+    ${{
+      format(
+        'ci-{0}-{1}-{2}',
+        github.event_name,
+        github.event_name == 'pull_request'
+          && github.event.pull_request.head.repo.full_name
+          || github.repository,
+        github.event_name == 'workflow_dispatch'
+          && github.run_id
+          || github.head_ref
+          || github.ref_name
+      )
+    }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
 jobs:
-  lint:
+  route:
+    name: Route event
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      publish: ${{ steps.route.outputs.publish }}
+      run: ${{ steps.route.outputs.run }}
+
+    steps:
+      - name: Select pipeline
+        id: route
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const isPullRequest = context.eventName === "pull_request";
+            const isManual = context.eventName === "workflow_dispatch";
+            const isBranchPush = context.eventName === "push"
+              && context.ref.startsWith("refs/heads/");
+            const isInternalPullRequest = isPullRequest
+              && context.payload.pull_request.head.repo?.full_name
+                === context.payload.repository.full_name
+              && context.actor !== "dependabot[bot]";
+
+            let run = true;
+            if (isBranchPush) {
+              const branch = context.ref.slice("refs/heads/".length);
+              const pulls = await github.paginate(
+                github.rest.pulls.list,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  head: `${context.repo.owner}:${branch}`,
+                  state: "open",
+                  per_page: 100,
+                },
+              );
+              run = !pulls.some((pull) =>
+                pull.head.repo?.full_name === context.payload.repository.full_name
+                && pull.head.ref === branch
+              );
+            }
+
+            core.setOutput("run", String(run));
+            core.setOutput("publish", String(!isManual && (!isPullRequest || isInternalPullRequest)));
+
+  python:
+    name: Python checks
+    if: needs.route.outputs.run == 'true'
+    needs: route
     runs-on: ubuntu-latest
 
     steps:
@@ -40,73 +108,244 @@ jobs:
       - name: Type check
         run: uv run ty check
 
-  test:
-    needs: lint
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v8.3.1
-        with:
-          enable-cache: true
-          cache-dependency-glob: uv.lock
-
-      - name: Sync workspace
-        run: uv sync --locked
-
       - name: Run tests
         run: uv run pytest
 
-  docker:
-    needs: test
-    runs-on: ubuntu-latest
+  build_amd64_image:
+    name: Build autobrr-remove (amd64)
+    if: needs.route.outputs.run == 'true'
+    needs:
+      - route
+      - python
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-image.yaml
+    with:
+      platform: linux/amd64
+      platform_key: amd64
+      runner: ubuntu-24.04
+      publish: ${{ needs.route.outputs.publish == 'true' }}
+      export_e2e: true
+    secrets:
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  build_arm64_image:
+    name: Build autobrr-remove (arm64)
+    if: needs.route.outputs.run == 'true'
+    needs:
+      - route
+      - python
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-image.yaml
+    with:
+      platform: linux/arm64
+      platform_key: arm64
+      runner: ubuntu-24.04-arm
+      publish: ${{ needs.route.outputs.publish == 'true' }}
+      export_e2e: false
+    secrets:
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  e2e:
+    name: End-to-end tests
+    if: >-
+      ${{
+        needs.route.outputs.run == 'true' &&
+        (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
+      }}
+    needs:
+      - route
+      - python
+      - build_amd64_image
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      packages: read
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Login to GitHub Container Registry
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+      - name: Log in to GitHub Container Registry
+        if: needs.route.outputs.publish == 'true'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
+      - name: Download image digest
+        if: needs.route.outputs.publish == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: autobrr-remove-amd64-digest
+          path: ${{ runner.temp }}/digests/autobrr-remove
+
+      - name: Load image from registry digest
+        if: needs.route.outputs.publish == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_digest="sha256:$(basename "$(find "${RUNNER_TEMP}/digests/autobrr-remove" -type f -print -quit)")"
+
+          docker pull "ghcr.io/${GITHUB_REPOSITORY_OWNER}/autobrr-remove@${image_digest}"
+          docker tag \
+            "ghcr.io/${GITHUB_REPOSITORY_OWNER}/autobrr-remove@${image_digest}" \
+            autobrr-remove:e2e
+
+      - name: Download image
+        if: needs.route.outputs.publish != 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: e2e-autobrr-remove-amd64-image
+          path: ${{ runner.temp }}/images
+
+      - name: Load image artifact
+        if: needs.route.outputs.publish != 'true'
+        shell: bash
+        run: docker load --input "${RUNNER_TEMP}/images/autobrr-remove.tar"
+
+      - name: Test image
+        run: docker run --rm autobrr-remove:e2e autobrr-remove --help
+
+  publish:
+    name: Publish autobrr-remove
+    if: >-
+      ${{
+        always() &&
+        needs.route.outputs.publish == 'true' &&
+        needs.python.result == 'success' &&
+        needs.build_amd64_image.result == 'success' &&
+        needs.build_arm64_image.result == 'success' &&
+        (needs.e2e.result == 'success' || needs.e2e.result == 'skipped')
+      }}
+    needs:
+      - route
+      - python
+      - build_amd64_image
+      - build_arm64_image
+      - e2e
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+
+    steps:
+      - name: Download amd64 digest
+        uses: actions/download-artifact@v8
+        with:
+          name: autobrr-remove-amd64-digest
+          path: ${{ runner.temp }}/digests/amd64
+
+      - name: Download arm64 digest
+        uses: actions/download-artifact@v8
+        with:
+          name: autobrr-remove-arm64-digest
+          path: ${{ runner.temp }}/digests/arm64
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Docker meta
+      - name: Generate image metadata
         id: meta
         uses: docker/metadata-action@v6
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: index
         with:
           images: |
+            wthueb/autobrr-remove
             ghcr.io/${{ github.repository_owner }}/autobrr-remove
           tags: |
             type=ref,event=branch
             type=ref,event=pr
+            type=raw,value=${{ github.head_ref }},enable=${{ github.event_name == 'pull_request' }}
             type=semver,pattern=v{{version}}
             type=semver,pattern=v{{major}}.{{minor}}
             type=semver,pattern=v{{major}}
+          labels: |
+            org.opencontainers.image.title=autobrr-remove
+            org.opencontainers.image.description=Automatically remove torrents from qBittorrent based on custom criteria
+          annotations: |
+            org.opencontainers.image.title=autobrr-remove
+            org.opencontainers.image.description=Automatically remove torrents from qBittorrent based on custom criteria
 
-      - name: Build and push
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: Dockerfile
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Assemble and verify multi-platform image
+        shell: bash
+        env:
+          ANNOTATIONS: ${{ steps.meta.outputs.annotations }}
+          METADATA_JSON: ${{ steps.meta.outputs.json }}
+        run: |
+          set -euo pipefail
+
+          amd64_digest="sha256:$(basename "$(find "${RUNNER_TEMP}/digests/amd64" -type f -print -quit)")"
+          arm64_digest="sha256:$(basename "$(find "${RUNNER_TEMP}/digests/arm64" -type f -print -quit)")"
+
+          annotation_args=()
+          while IFS= read -r annotation; do
+            if [[ -n "${annotation}" ]]; then
+              annotation_args+=(--annotation "${annotation}")
+            fi
+          done <<< "${ANNOTATIONS}"
+
+          create_index() {
+            local image_name="$1"
+            local metadata_file="$2"
+            local tag_args=()
+
+            while IFS= read -r image_tag; do
+              tag_args+=(--tag "${image_tag}")
+            done < <(
+              jq -r --arg prefix "${image_name}:" \
+                '.tags[] | select(startswith($prefix))' <<< "${METADATA_JSON}"
+            )
+
+            if (( ${#tag_args[@]} == 0 )); then
+              echo "No tags generated for ${image_name}" >&2
+              return 1
+            fi
+
+            docker buildx imagetools create \
+              "${tag_args[@]}" \
+              "${annotation_args[@]}" \
+              --metadata-file "${metadata_file}" \
+              "${image_name}@${amd64_digest}" \
+              "${image_name}@${arm64_digest}"
+          }
+
+          verify_index() {
+            local image_name="$1"
+            local metadata_file="$2"
+            local image_digest
+            local image_index
+
+            image_digest="$(jq -r '."containerimage.descriptor".digest' "${metadata_file}")"
+            image_index="$(docker buildx imagetools inspect --raw "${image_name}@${image_digest}")"
+            jq -e '
+              any(.manifests[]?; .platform.os == "linux" and .platform.architecture == "amd64")
+              and any(.manifests[]?; .platform.os == "linux" and .platform.architecture == "arm64")
+            ' <<< "${image_index}"
+          }
+
+          create_index "wthueb/autobrr-remove" "${RUNNER_TEMP}/dockerhub-metadata.json"
+          create_index \
+            "ghcr.io/${GITHUB_REPOSITORY_OWNER}/autobrr-remove" \
+            "${RUNNER_TEMP}/ghcr-metadata.json"
+          verify_index "wthueb/autobrr-remove" "${RUNNER_TEMP}/dockerhub-metadata.json"
+          verify_index \
+            "ghcr.io/${GITHUB_REPOSITORY_OWNER}/autobrr-remove" \
+            "${RUNNER_TEMP}/ghcr-metadata.json"
