@@ -9,7 +9,6 @@ from autobrr_remove.config import (
     MaintainFreeSpaceConfig,
     RemoveStoppedConfig,
     RemoveUnregisteredConfig,
-    SetSeedLimitsConfig,
 )
 from autobrr_remove.main import torrents_in_categories, warn_category_overlaps
 
@@ -59,7 +58,6 @@ def test_category_filtering(client, included, ignored, expected):
         RemoveUnregisteredConfig,
         RemoveStoppedConfig,
         MaintainFreeSpaceConfig,
-        SetSeedLimitsConfig,
     ],
 )
 def test_all_feature_configs_accept_both_filters(config_type):

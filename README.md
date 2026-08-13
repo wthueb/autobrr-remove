@@ -27,28 +27,67 @@ own `enabled` flag:
 - **`maintain_free_space`** — once free space drops below
   `free_space_threshold_gibi`, removes eligible torrents matching its category filters
   (lowest upload rate first) until the threshold is met.
-- **`set_seed_limits`** — sets qBittorrent share limits on matching torrents that
-  don't have any yet, so qBittorrent removes them once a limit
-  is reached (`on_delete`: `Remove` keeps files, `RemoveWithContent` deletes
-  them, `Stop` pauses).
+- **`set_seed_limits`** — reconciles qBittorrent share limits for explicitly
+  configured category policies. A policy can use tracker limits, override either
+  limit, provide category-specific fallbacks, and override the action qBittorrent
+  takes when a limit is reached.
 
-Each feature supports the same optional category filters. With only `categories`,
-only the listed categories are checked. With only `ignore_categories`, every
-category except the listed ones is checked. When both are set, the feature checks
-only categories included by `categories` and not excluded by `ignore_categories`.
-An overlap produces a startup warning and `ignore_categories` takes precedence.
-Omit `categories` or set it to `null` to include every category; a `null` entry
-inside either list represents torrents with no category.
+`remove_unregistered`, `remove_stopped`, and `maintain_free_space` support the same
+optional category filters. With only `categories`, only the listed categories are
+checked. With only `ignore_categories`, every category except the listed ones is
+checked. When both are set, `ignore_categories` takes precedence. Omit `categories`
+or set it to `null` to include every category; a `null` entry represents torrents
+with no category.
 
 Seed time and ratio limits are defined **per tracker** under `trackers`; a
 torrent is matched to a tracker by its announce hostname. A torrent has met a
 tracker's requirements once it has seeded longer than `seed_time_minutes` **or**
-reached `ratio` — this drives both removal eligibility (`maintain_free_space`)
-and the limits applied by `set_seed_limits`. Set either `seed_time_minutes` or
-`ratio` (or the `default_*` values) to `-1` for **unlimited**: that dimension
-never triggers removal, and `set_seed_limits` sets it to "no limit" in
-qBittorrent. Torrents whose tracker is not listed are left untouched, unless
-`set_seed_limits`'s `default_*` values apply.
+reached `ratio` — this drives removal eligibility for `maintain_free_space` and
+can supply limits to `set_seed_limits`. Set either tracker value to `-1` for
+**unlimited**; that dimension never triggers removal.
+
+### Seed-limit category policies
+
+Only categories listed under `set_seed_limits.categories` are managed. Category
+names are exact and case-sensitive; use `name: null` for uncategorized torrents.
+Each name may appear only once. An omitted or empty list is a valid no-op.
+
+```yaml
+set_seed_limits:
+  enabled: true
+  default_seed_time_minutes: null
+  default_ratio: null
+  action: RemoveWithContent
+
+  categories:
+    - name: cross
+      use_tracker_limits: true
+
+    - name: upload
+      seed_time_minutes: -1
+      ratio: -1
+      action: EnableSuperSeeding
+
+    - name: dontcare
+      seed_time_minutes: 0
+      use_tracker_limits: true
+      default_ratio: 0.5
+```
+
+Seed time and ratio are resolved independently in this order: an explicit category
+limit, a matching tracker limit when `use_tracker_limits` is true (the default), a
+category `default_*`, then the global `default_*`. Omitted category fields continue
+to the next source. An explicitly configured `null` stops resolution for that
+dimension and preserves the torrent's current value. A final global `null` also
+preserves the current value. `-1` means unlimited, `0` and positive values are
+explicit limits, and `-2` is not accepted in configuration.
+
+The global `action`, optionally overridden per category, accepts `Default`, `Stop`,
+`Remove`, `RemoveWithContent`, or `EnableSuperSeeding`. Trackers cannot override the
+action. The feature also enforces `MatchAny` mode when supported (qBittorrent 5.3+;
+earlier versions use that behavior implicitly) and an unlimited inactive-seeding
+limit. It calls qBittorrent only when the resolved state differs from the torrent's
+current state.
 
 ## Running
 

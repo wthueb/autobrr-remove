@@ -23,6 +23,13 @@ def _check_limit(value: float) -> float:
 SeedTimeMinutes = Annotated[int, AfterValidator(_check_limit)]
 # a share ratio, or -1 for unlimited
 Ratio = Annotated[float, AfterValidator(_check_limit)]
+ShareLimitAction = Literal[
+    "Default",
+    "Stop",
+    "Remove",
+    "RemoveWithContent",
+    "EnableSuperSeeding",
+]
 
 
 def category_is_included(
@@ -131,14 +138,86 @@ class MaintainFreeSpaceConfig(CategoryFilterConfig):
         return self
 
 
-class SetSeedLimitsConfig(CategoryFilterConfig):
-    # applied when a torrent's tracker is not configured under `trackers`; both must
-    # be non-null for the fallback to apply, otherwise such torrents are left untouched.
-    # use -1 for unlimited (as with trackers).
+class SetSeedLimitsCategoryConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # qBittorrent reports "" for torrents without a category, configured here as null.
+    name: str | None
+    use_tracker_limits: bool = True
+    # Explicit limits take precedence over trackers. An explicitly configured null
+    # preserves the torrent's current value; an omitted field continues resolution.
+    seed_time_minutes: SeedTimeMinutes | None = None
+    ratio: Ratio | None = None
+    # Category defaults are used after tracker limits and before the global defaults.
+    default_seed_time_minutes: SeedTimeMinutes | None = None
+    default_ratio: Ratio | None = None
+    action: ShareLimitAction | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _normalize_uncategorized_name(cls, value: str | None) -> str | None:
+        return None if value == "" else value
+
+    @model_validator(mode="after")
+    def _reject_null_action(self) -> SetSeedLimitsCategoryConfig:
+        if "action" in self.model_fields_set and self.action is None:
+            raise ValueError("action cannot be null")
+        return self
+
+    @property
+    def needs_tracker_limits(self) -> bool:
+        return self.use_tracker_limits and (
+            "seed_time_minutes" not in self.model_fields_set or "ratio" not in self.model_fields_set
+        )
+
+    def resolve_seed_time_minutes(
+        self,
+        tracker: TrackerConfig | None,
+        global_default: SeedTimeMinutes | None,
+    ) -> tuple[SeedTimeMinutes | None, str]:
+        if "seed_time_minutes" in self.model_fields_set:
+            return self.seed_time_minutes, "category"
+        if self.use_tracker_limits and tracker is not None:
+            return tracker.seed_time_minutes, f"tracker:{tracker.name}"
+        if "default_seed_time_minutes" in self.model_fields_set:
+            return self.default_seed_time_minutes, "category_default"
+        return global_default, "global_default"
+
+    def resolve_ratio(
+        self,
+        tracker: TrackerConfig | None,
+        global_default: Ratio | None,
+    ) -> tuple[Ratio | None, str]:
+        if "ratio" in self.model_fields_set:
+            return self.ratio, "category"
+        if self.use_tracker_limits and tracker is not None:
+            return tracker.ratio, f"tracker:{tracker.name}"
+        if "default_ratio" in self.model_fields_set:
+            return self.default_ratio, "category_default"
+        return global_default, "global_default"
+
+
+class SetSeedLimitsConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    # Only torrents whose exact category appears here are managed.
+    categories: list[SetSeedLimitsCategoryConfig] = Field(default_factory=list)
     default_seed_time_minutes: SeedTimeMinutes | None = None
     default_ratio: Ratio | None = None
     # qBittorrent shareLimitAction applied when a share limit is reached
-    on_delete: Literal["Default", "Remove", "RemoveWithContent", "Stop"] = "Default"
+    action: ShareLimitAction = "Default"
+
+    @model_validator(mode="after")
+    def _require_unique_categories(self) -> SetSeedLimitsConfig:
+        names = [category.name for category in self.categories]
+        if len(names) != len(set(names)):
+            raise ValueError("set_seed_limits category names must be unique")
+        return self
+
+    def category_config(self, category: str | None) -> SetSeedLimitsCategoryConfig | None:
+        category = category or None
+        return next((item for item in self.categories if item.name == category), None)
 
 
 class Config(BaseModel):

@@ -81,7 +81,6 @@ def warn_category_overlaps(config: Config) -> None:
         ("remove_unregistered", config.remove_unregistered),
         ("remove_stopped", config.remove_stopped),
         ("maintain_free_space", config.maintain_free_space),
-        ("set_seed_limits", config.set_seed_limits),
     )
 
     for feature_name, cfg in feature_configs:
@@ -227,7 +226,7 @@ def remove_stopped(
 
 
 def set_seed_limits(
-    client: qbittorrentapi.Client,
+    client: TorrentsClient,
     config: Config,
     dry_run: bool = False,
 ) -> None:
@@ -235,51 +234,81 @@ def set_seed_limits(
 
     log.info("setting seed limits...")
 
-    torrents = torrents_in_categories(client, cfg.categories, cfg.ignore_categories)
-
-    for torrent in torrents:
+    for torrent in client.torrents_info():
         with bound_contextvars(**_torrent_context(torrent)):
-            # -2 means "use the global limit", i.e. the torrent has no explicit limit set.
-            # leave torrents that already have a ratio or seeding-time limit untouched.
-            if torrent.ratio_limit != -2 or torrent.seeding_time_limit != -2:
-                with bound_contextvars(
-                    ratio_limit=torrent.ratio_limit,
-                    seeding_time_limit=torrent.seeding_time_limit,
-                ):
-                    log.debug("torrent already has share limits; skipping")
+            category_cfg = cfg.category_config(torrent.category)
+            if category_cfg is None:
+                log.debug("torrent category is not managed; skipping")
                 continue
 
-            tracker = config.match_tracker(t.url for t in torrent.trackers)
+            tracker = (
+                config.match_tracker(t.url for t in torrent.trackers)
+                if category_cfg.needs_tracker_limits
+                else None
+            )
+            seed_time_minutes, seed_time_source = category_cfg.resolve_seed_time_minutes(
+                tracker, cfg.default_seed_time_minutes
+            )
+            ratio, ratio_source = category_cfg.resolve_ratio(tracker, cfg.default_ratio)
 
-            if tracker is not None:
-                seed_time_minutes = tracker.seed_time_minutes
-                ratio = tracker.ratio
-                source = tracker.name
-            elif cfg.default_seed_time_minutes is not None and cfg.default_ratio is not None:
-                seed_time_minutes = cfg.default_seed_time_minutes
-                ratio = cfg.default_ratio
-                source = "default"
-            else:
-                log.debug("torrent has no matching share-limit configuration; skipping")
-                continue
+            target_seed_time = (
+                torrent.seeding_time_limit if seed_time_minutes is None else seed_time_minutes
+            )
+            target_ratio = torrent.ratio_limit if ratio is None else ratio
+            target_action = category_cfg.action or cfg.action
+            target_inactive_seed_time = UNLIMITED
+            target_mode = "MatchAny"
+            supports_share_limits_mode = hasattr(torrent, "share_limits_mode")
+            # qBittorrent before 5.3 only supports MatchAny semantics and does not
+            # expose share_limits_mode. Treat that implicit behavior as the target.
+            current_mode = getattr(torrent, "share_limits_mode", target_mode)
+
+            current_state = (
+                torrent.ratio_limit,
+                torrent.seeding_time_limit,
+                torrent.inactive_seeding_time_limit,
+                torrent.share_limit_action,
+                current_mode,
+            )
+            target_state = (
+                target_ratio,
+                target_seed_time,
+                target_inactive_seed_time,
+                target_action,
+                target_mode,
+            )
 
             with bound_contextvars(
                 dry_run=dry_run,
-                limit_source=source,
-                ratio_limit=ratio,
-                seeding_time_limit_minutes=seed_time_minutes,
-                on_delete=cfg.on_delete,
+                ratio_limit_current=torrent.ratio_limit,
+                ratio_limit_target=target_ratio,
+                ratio_limit_source=ratio_source,
+                seeding_time_limit_current=torrent.seeding_time_limit,
+                seeding_time_limit_target=target_seed_time,
+                seeding_time_limit_source=seed_time_source,
+                inactive_seeding_time_limit_current=torrent.inactive_seeding_time_limit,
+                inactive_seeding_time_limit_target=target_inactive_seed_time,
+                share_limit_action_current=torrent.share_limit_action,
+                share_limit_action_target=target_action,
+                share_limits_mode_current=current_mode,
+                share_limits_mode_target=target_mode,
             ):
-                log.info("torrent share limits resolved")
+                if current_state == target_state:
+                    log.debug("torrent share limits already match")
+                    continue
+
+                log.info("torrent share limits need reconciliation")
 
                 if not dry_run:
-                    torrent.set_share_limits(
-                        ratio_limit=str(ratio),
-                        seeding_time_limit=seed_time_minutes,
-                        inactive_seeding_time_limit=-2,
-                        share_limit_action=cfg.on_delete,
-                        share_limits_mode="MatchAny",
+                    share_limits = dict(
+                        ratio_limit=str(target_ratio),
+                        seeding_time_limit=target_seed_time,
+                        inactive_seeding_time_limit=target_inactive_seed_time,
+                        share_limit_action=target_action,
                     )
+                    if supports_share_limits_mode:
+                        share_limits["share_limits_mode"] = target_mode
+                    torrent.set_share_limits(**share_limits)
 
 
 def maintain_free_space(

@@ -55,23 +55,30 @@ maintain_free_space:
   ignore_categories: []
   free_space_threshold_gibi: 1024
 
-# set qBittorrent share limits on torrents that don't have any yet, so qBittorrent
-# removes them once a limit is reached. limits come from the torrent's matched tracker,
-# falling back to the defaults below only when both defaults are non-null (otherwise
-# such torrents are left untouched).
+# reconcile qBittorrent share limits for the categories listed below. configured limits
+# replace different torrent values; null means preserve the current value and -1 means
+# unlimited.
 set_seed_limits:
   enabled: true
-  # only torrents in one of these categories are considered (set to null for all)
-  categories:
-    - cross
-  # always exclude these categories, even if they also appear in categories
-  ignore_categories: []
-  # use -1 for unlimited (same as trackers below)
   default_seed_time_minutes: null
   default_ratio: null
-  # action qBittorrent takes when a share limit is reached:
-  # Remove (keep files), RemoveWithContent (delete files), or Stop (pause)
-  on_delete: Remove
+  # Default, Stop, Remove, RemoveWithContent, or EnableSuperSeeding
+  action: RemoveWithContent
+  categories:
+    # use matching tracker limits, then the global defaults above
+    - name: cross
+
+    # category limits take precedence over matching trackers
+    - name: upload
+      seed_time_minutes: -1
+      ratio: -1
+
+    # precedence is explicit category limit, tracker, category default, global default
+    - name: dontcare
+      seed_time_minutes: 0
+      use_tracker_limits: true # defaults to true
+      default_ratio: 0.5
+      action: Stop # optional per-category override
 
 # seed time and ratio limits are defined per tracker. a torrent is matched to a tracker
 # by its announce hostname. used both for removal eligibility (maintain_free_space) and

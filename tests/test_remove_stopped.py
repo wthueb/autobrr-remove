@@ -144,7 +144,7 @@ def test_torrent_no_longer_stopped_is_removed_from_tracking():
     assert first_seen == {}
 
 
-@pytest.mark.parametrize("on_delete", ["Default", "Stop"])
+@pytest.mark.parametrize("on_delete", ["Default", "Stop", "EnableSuperSeeding"])
 def test_on_delete_rejects_unsupported_actions(on_delete):
     with pytest.raises(ValidationError):
         RemoveStoppedConfig(on_delete=on_delete)
