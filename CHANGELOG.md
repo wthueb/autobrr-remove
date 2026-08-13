@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.0.0](https://github.com/wthueb/autobrr-remove/compare/v3.2.1...v4.0.0) (2026-08-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* per-category overrides for seed limits
+
+### Features
+
+* per-category overrides for seed limits ([827ee62](https://github.com/wthueb/autobrr-remove/commit/827ee6273c4b5ee68a8ccb88dcb6a749257222fc))
+
 ## [3.2.1](https://github.com/wthueb/autobrr-remove/compare/v3.2.0...v3.2.1) (2026-07-31)
 
 
