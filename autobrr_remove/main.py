@@ -366,7 +366,7 @@ def maintain_free_space(
             possible_to_remove.append(torrent)
 
     possible_to_remove.sort(
-        key=lambda t: t.uploaded / t.seeding_time if t.seeding_time > 0 else float("inf")
+        key=lambda t: t.ratio / t.seeding_time if t.seeding_time > 0 else float("inf")
     )
 
     with bound_contextvars(eligible_torrent_count=len(possible_to_remove)):
