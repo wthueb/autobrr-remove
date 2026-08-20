@@ -1,129 +1,144 @@
 # tarr
 
-Automatically remove torrents from qBittorrent based on custom, per-tracker
-criteria to keep a target amount of free disk space available.
+`tarr` is a small automation service for qBittorrent. It applies tracker- and
+category-specific retention rules, removes torrents that are no longer useful,
+and keeps a configurable amount of disk space free. Run it once for a single
+reconciliation pass or leave it running as a daemon.
 
-## Configuration
+The service talks to qBittorrent through its WebUI API and does not inspect the
+download directory directly. Configuration is a strictly validated YAML file;
+unknown fields and invalid limits stop startup instead of being silently ignored.
 
-Configuration lives in a YAML file (validated with pydantic on startup). Copy
-[`config.example.yaml`](config.example.yaml) to `config.yaml` and edit it:
+## What it manages
 
-```sh
+Each job is independent and can be enabled or disabled:
+
+| Job | Behavior |
+| --- | --- |
+| `remove_unregistered` | Deletes a torrent and its content after a tracker continuously reports it as unregistered for a configured delay. |
+| `remove_stopped` | Removes completed, stopped torrents after a delay, optionally keeping their downloaded content. Actively seeding torrents are untouched. |
+| `set_seed_limits` | Reconciles qBittorrent ratio, seed-time, limit action, and related share-limit settings for explicitly managed categories. |
+| `maintain_free_space` | When disk space is below the target, deletes eligible torrents and their content until the estimated target is reached. |
+
+The delayed jobs keep their first-seen timestamps in memory. Restarting `tarr`
+resets those timers, and delays greater than zero are only useful in daemon mode.
+Use `--dry-run` to inspect planned deletions and share-limit changes without
+mutating qBittorrent.
+
+## Quick start
+
+Requirements are Python 3.12 or newer and a reachable qBittorrent WebUI. Copy
+the annotated example, enter the WebUI credentials, and start with a dry run:
+
+```nu
 cp config.example.yaml config.yaml
+uv sync
+uv run tarr --config config.yaml --dry-run
 ```
 
-The `qbittorrent` section contains the connection, polling interval, and four
-independent features, each toggled with its own `enabled` flag:
+Run a real pass by removing `--dry-run`, or poll continuously:
 
-- **`remove_unregistered`** — deletes torrents whose tracker reports them as
-  "unregistered", subject to its category filters.
-  Waits `delay_minutes` after first seeing the status before deleting (some
-  trackers report it transiently).
-- **`remove_stopped`** — removes torrents after they have continuously appeared
-  as completed and stopped for `delay_minutes`; actively seeding torrents are left
-  alone. `on_delete` controls whether downloaded files are kept (`Remove`) or
-  deleted (`RemoveWithContent`). First-seen times are held in memory and reset when
-  tarr restarts.
-- **`maintain_free_space`** — once free space drops below
-  `free_space_threshold_gibi`, removes eligible torrents matching its category filters
-  (lowest upload rate first) until the threshold is met.
-- **`set_seed_limits`** — reconciles qBittorrent share limits for explicitly
-  configured category policies. A policy can use tracker limits, override either
-  limit, provide category-specific fallbacks, and override the action qBittorrent
-  takes when a limit is reached.
-
-`remove_unregistered`, `remove_stopped`, and `maintain_free_space` support the same
-optional category filters. With only `categories`, only the listed categories are
-checked. With only `ignore_categories`, every category except the listed ones is
-checked. When both are set, `ignore_categories` takes precedence. Omit `categories`
-or set it to `null` to include every category; a `null` entry represents torrents
-with no category.
-
-Seed time and ratio limits are defined **per tracker** under `trackers`; a
-torrent is matched to a tracker by its announce hostname. A torrent has met a
-tracker's requirements once it has seeded longer than `seed_time_minutes` **or**
-reached `ratio` — this drives removal eligibility for `maintain_free_space` and
-can supply limits to `set_seed_limits`. Set either tracker value to `-1` for
-**unlimited**; that dimension never triggers removal.
-
-### Seed-limit category policies
-
-Only categories listed under `qbittorrent.set_seed_limits.categories` are managed. Category
-names are exact and case-sensitive; use `name: null` for uncategorized torrents.
-Each name may appear only once. An omitted or empty list is a valid no-op.
-
-```yaml
-qbittorrent:
-  set_seed_limits:
-    enabled: true
-    default_seed_time_minutes: null
-    default_ratio: null
-    action: RemoveWithContent
-
-    categories:
-      - name: cross
-        use_tracker_limits: true
-
-      - name: upload
-        seed_time_minutes: -1
-        ratio: -1
-        action: EnableSuperSeeding
-
-      - name: dontcare
-        seed_time_minutes: 0
-        use_tracker_limits: true
-        default_ratio: 0.5
+```nu
+uv run tarr --config config.yaml --daemon
 ```
 
-Seed time and ratio are resolved independently in this order: an explicit category
-limit, a matching tracker limit when `use_tracker_limits` is true (the default), a
-category `default_*`, then the global `default_*`. Omitted category fields continue
-to the next source. An explicitly configured `null` stops resolution for that
-dimension and preserves the torrent's current value. A final global `null` also
-preserves the current value. `-1` means unlimited, `0` and positive values are
-explicit limits, and `-2` is not accepted in configuration.
+The config path defaults to `config.yaml`. It can also be supplied with `-c` /
+`--config` or through the `CONFIG_FILE` environment variable. In daemon mode,
+`qbittorrent.interval_seconds` controls the polling interval and a failed pass is
+logged before the next one is attempted.
 
-The global `action`, optionally overridden per category, accepts `Default`, `Stop`,
-`Remove`, `RemoveWithContent`, or `EnableSuperSeeding`. Trackers cannot override the
-action. The feature also enforces `MatchAny` mode when supported (qBittorrent 5.3+;
-earlier versions use that behavior implicitly) and an unlimited inactive-seeding
-limit. It calls qBittorrent only when the resolved state differs from the torrent's
-current state.
+## Configuration model
 
-## Running
+See [`config.example.yaml`](config.example.yaml) for the complete, documented
+schema. Its three top-level sections are:
 
-```sh
-# single pass
-tarr --config config.yaml
+- `logging`: log level, output format, and optional rotating file output.
+- `qbittorrent`: WebUI connection, polling interval, and the four job settings.
+- `trackers`: tracker hostnames and their minimum seed-time and ratio rules.
 
-# run continuously, checking every `interval_seconds`
-tarr --config config.yaml --daemon
+### Categories
 
-# log what would be removed without deleting anything
-tarr --config config.yaml --dry-run
-```
+The three removal jobs share include/exclude filters. `categories: null` includes
+all categories; otherwise only exact names in the list are included.
+`ignore_categories` always wins over `categories`. Use YAML `null` in either list
+for torrents that have no category.
 
-The config path defaults to `config.yaml` in the working directory, or the
-`CONFIG_FILE` environment variable if set.
+`set_seed_limits` is intentionally opt-in: only exact category names listed under
+that job are changed. A category named `null` manages uncategorized torrents.
+Category names are case-sensitive and must be unique.
 
-### Logging
+### Trackers and retention
 
-Logs are written to stdout as logfmt by default. Set `logging.format: json` for
-JSON output. Both formats use the same core fields as wi1-bot: `ts`, `level`,
-`logger`, `src` (`func_name:lineno`), and `msg`.
+A torrent is associated with the first configured tracker whose `hosts` entry
+matches an announce hostname or its subdomain. Tracker policies provide a
+`seed_time_minutes` and `ratio` value. For free-space cleanup, a torrent becomes
+eligible after satisfying either value; `-1` makes that dimension unlimited, so
+it can never make the torrent eligible.
 
-Log messages are static event names. Variable data is carried in scoped context
-fields: each feature run binds `job`, torrent operations bind `torrent`,
-`torrent_name`, `torrent_state`, and `torrent_size_bytes`, and individual
-actions add fields such as durations, limits, and `dry_run`. Context is
-automatically restored when that scope finishes. The optional rotating
-`logging.file` output uses the same selected format.
+When cleanup is needed, unmanaged trackers and excluded categories are skipped.
+Eligible torrents are ordered by average ratio gained per second of seeding,
+lowest first, and deleted with their content until enough space is estimated to
+have been reclaimed.
 
-### Docker
+### Share limits
 
-`compose.yaml` mounts `./config.yaml` into the container at
-`/config/config.yaml`. Edit `config.yaml`, then:
+For each managed category, seed time and ratio are resolved independently in
+this order:
 
-```sh
+1. An explicit category value.
+2. The matching tracker value when `use_tracker_limits` is enabled.
+3. The category's `default_*` value.
+4. The job's global `default_*` value.
+
+An omitted value continues down that chain. An explicit `null` preserves the
+torrent's current value, while `-1` sets an unlimited value. Zero and positive
+numbers are applied as limits. The limit action can be `Default`, `Stop`,
+`Remove`, `RemoveWithContent`, or `EnableSuperSeeding`, with an optional override
+per category.
+
+The job also sets the inactive-seeding limit to unlimited and uses `MatchAny`
+semantics. qBittorrent versions before 5.3 already use those semantics implicitly.
+No API update is sent when a torrent already matches the resolved state.
+
+## Docker
+
+The included [`compose.yaml`](compose.yaml) runs both qBittorrent and `tarr`.
+Create `config.yaml`, change its qBittorrent host to
+`http://qbittorrent:8080`, review the credentials and volume settings, then run:
+
+```nu
 docker compose up -d
 ```
+
+The `tarr` image runs as UID/GID 999 and reads the mounted configuration from
+`/config/config.yaml`. The compose file builds the local source by default;
+remove `build` if you only want to use `ghcr.io/wthueb/tarr:latest`.
+
+## Logging
+
+Logs go to stdout in logfmt format. Set `logging.format: json` for JSON, and set
+`logging.file` to additionally write 10 MiB rotating files; `file_count` controls
+how many are retained. Events include stable `ts`, `level`, `logger`, `src`, and
+`msg` fields plus job, torrent, limits, and deletion context where relevant.
+
+## Development
+
+The repository uses `uv` for dependency locking and Nix for a reproducible
+development shell. `nix develop` syncs and activates the virtual environment.
+The usual checks are:
+
+```nu
+uv run pytest
+uv run ruff check .
+uv run ruff format --check .
+uv run ty check
+```
+
+Source lives in [`tarr/`](tarr/), with configuration models in `config.py`, job
+orchestration in `main.py`, and structured logging in `logging.py`. Tests live in
+[`tests/`](tests/). Releases are packaged from `pyproject.toml` and the container
+build is defined in [`Dockerfile`](Dockerfile).
+
+## License
+
+`tarr` is available under the [MIT License](LICENSE).
