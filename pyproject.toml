@@ -1,7 +1,7 @@
 [project]
-name = "autobrr-remove"
+name = "tarr"
 dynamic = ["version"]
-description = "automatically remove torrents from autobrr based on custom criteria"
+description = "(qbit)torrent manager"
 authors = [{ name = "William Huebner", email = "wilhueb@gmail.com" }]
 readme = "README.md"
 license = "MIT"
@@ -14,10 +14,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/wthueb/autobrr-remove"
+Homepage = "https://github.com/wthueb/tarr"
 
 [project.scripts]
-autobrr-remove = "autobrr_remove:main"
+tarr = "tarr:main"
 
 [tool.ruff]
 line-length = 100

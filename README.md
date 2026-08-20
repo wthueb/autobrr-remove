@@ -1,4 +1,4 @@
-# autobrr-remove
+# tarr
 
 Automatically remove torrents from qBittorrent based on custom, per-tracker
 criteria to keep a target amount of free disk space available.
@@ -23,7 +23,7 @@ own `enabled` flag:
   as completed and stopped for `delay_minutes`; actively seeding torrents are left
   alone. `on_delete` controls whether downloaded files are kept (`Remove`) or
   deleted (`RemoveWithContent`). First-seen times are held in memory and reset when
-  autobrr-remove restarts.
+  tarr restarts.
 - **`maintain_free_space`** — once free space drops below
   `free_space_threshold_gibi`, removes eligible torrents matching its category filters
   (lowest upload rate first) until the threshold is met.
@@ -93,13 +93,13 @@ current state.
 
 ```sh
 # single pass
-autobrr-remove --config config.yaml
+tarr --config config.yaml
 
 # run continuously, checking every `interval_seconds`
-autobrr-remove --config config.yaml --daemon
+tarr --config config.yaml --daemon
 
 # log what would be removed without deleting anything
-autobrr-remove --config config.yaml --dry-run
+tarr --config config.yaml --dry-run
 ```
 
 The config path defaults to `config.yaml` in the working directory, or the

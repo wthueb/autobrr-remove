@@ -4,8 +4,8 @@ from unittest.mock import Mock
 import pytest
 from pydantic import ValidationError
 
-from autobrr_remove.config import Config, SetSeedLimitsConfig
-from autobrr_remove.main import set_seed_limits
+from tarr.config import Config, SetSeedLimitsConfig
+from tarr.main import set_seed_limits
 
 
 class FakeClient:

@@ -12,7 +12,7 @@ wheels = [
 ]
 
 [[package]]
-name = "autobrr-remove"
+name = "tarr"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic" },

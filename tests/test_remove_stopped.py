@@ -8,8 +8,8 @@ import qbittorrentapi
 from pydantic import ValidationError
 from structlog.contextvars import get_contextvars
 
-from autobrr_remove.config import Config, RemoveStoppedConfig
-from autobrr_remove.main import remove_stopped, run
+from tarr.config import Config, RemoveStoppedConfig
+from tarr.main import remove_stopped, run
 
 
 class FakeClient:

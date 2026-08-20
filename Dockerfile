@@ -22,4 +22,4 @@ USER nonroot
 
 ENV CONFIG_FILE=/config/config.yaml
 
-CMD ["autobrr-remove", "--daemon"]
+CMD ["tarr", "--daemon"]

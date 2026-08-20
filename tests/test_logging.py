@@ -9,8 +9,8 @@ import structlog
 from pydantic import ValidationError
 from structlog.contextvars import bound_contextvars, clear_contextvars
 
-from autobrr_remove.config import LoggingConfig
-from autobrr_remove.logging import setup_logging
+from tarr.config import LoggingConfig
+from tarr.logging import setup_logging
 
 LOG_METHODS = {"critical", "debug", "error", "exception", "info", "warning"}
 
@@ -32,13 +32,13 @@ def restore_logging():
 def test_logfmt_is_default_and_uses_wi1_bot_fields(capsys):
     setup_logging(LoggingConfig(level="DEBUG"))
 
-    structlog.stdlib.get_logger("autobrr_remove").info("processed torrent", removed=True)
+    structlog.stdlib.get_logger("tarr").info("processed torrent", removed=True)
 
     line = capsys.readouterr().out.strip()
     assert re.match(
         (
             r'^ts="\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}" '
-            r"level=INFO logger=autobrr_remove "
+            r"level=INFO logger=tarr "
             r"src=test_logfmt_is_default_and_uses_wi1_bot_fields:\d+ "
             r'msg="processed torrent" removed=true$'
         ),
@@ -48,7 +48,7 @@ def test_logfmt_is_default_and_uses_wi1_bot_fields(capsys):
 
 def test_json_output_includes_and_restores_contextvars(capsys):
     setup_logging(LoggingConfig(format="json"))
-    logger = structlog.stdlib.get_logger("autobrr_remove")
+    logger = structlog.stdlib.get_logger("tarr")
 
     with bound_contextvars(job="remove_stopped", torrent="1234567890abcdef"):
         logger.warning("removing torrent", delete_files=True)
@@ -62,7 +62,7 @@ def test_json_output_includes_and_restores_contextvars(capsys):
         "torrent": "1234567890abcdef",
         "job": "remove_stopped",
         "level": "WARNING",
-        "logger": "autobrr_remove",
+        "logger": "tarr",
         "src": contextual["src"],
         "ts": contextual["ts"],
         "msg": "removing torrent",
@@ -76,26 +76,26 @@ def test_json_output_includes_and_restores_contextvars(capsys):
 def test_stdlib_logs_use_the_same_processors(capsys):
     setup_logging(LoggingConfig(format="json"))
 
-    logging.getLogger("autobrr_remove.worker").warning("stdlib warning")
+    logging.getLogger("tarr.worker").warning("stdlib warning")
 
     event = json.loads(capsys.readouterr().out)
     assert event["level"] == "WARNING"
-    assert event["logger"] == "autobrr_remove.worker"
+    assert event["logger"] == "tarr.worker"
     assert event["msg"] == "stdlib warning"
     assert re.match(r"test_stdlib_logs_use_the_same_processors:\d+", event["src"])
 
 
 def test_file_handler_uses_selected_format(tmp_path):
-    log_file = tmp_path / "autobrr-remove.log"
+    log_file = tmp_path / "tarr.log"
     setup_logging(LoggingConfig(format="json", file=log_file))
 
-    structlog.stdlib.get_logger("autobrr_remove").info("written to file")
+    structlog.stdlib.get_logger("tarr").info("written to file")
     for handler in logging.getLogger().handlers:
         handler.flush()
 
     event = json.loads(log_file.read_text())
     assert event["msg"] == "written to file"
-    assert event["logger"] == "autobrr_remove"
+    assert event["logger"] == "tarr"
 
 
 def test_logging_format_rejects_unknown_values():
@@ -104,7 +104,7 @@ def test_logging_format_rejects_unknown_values():
 
 
 def test_application_log_messages_are_static():
-    package_dir = pathlib.Path(__file__).parents[1] / "autobrr_remove"
+    package_dir = pathlib.Path(__file__).parents[1] / "tarr"
     dynamic_messages = []
 
     for path in package_dir.glob("*.py"):

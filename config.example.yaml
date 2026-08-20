@@ -11,7 +11,7 @@ logging:
   level: INFO
   # logfmt (default) or json
   format: logfmt
-  # file: /var/log/autobrr-remove/autobrr-remove.log
+  # file: /var/log/tarr/tarr.log
   # file_count: 20
 
 # delete torrents whose tracker reports them as "unregistered".
@@ -31,7 +31,7 @@ remove_unregistered:
 
 # remove torrents after they have continuously appeared as completed and stopped for
 # `delay_minutes`. actively seeding torrents are left alone; tracking starts when
-# autobrr-remove first observes a completed torrent in a stopped state.
+# tarr first observes a completed torrent in a stopped state.
 remove_stopped:
   enabled: false
   delay_minutes: 15

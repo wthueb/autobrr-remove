@@ -4,13 +4,13 @@ import pytest
 from structlog.contextvars import merge_contextvars
 from structlog.testing import capture_logs
 
-from autobrr_remove.config import (
+from tarr.config import (
     Config,
     MaintainFreeSpaceConfig,
     RemoveStoppedConfig,
     RemoveUnregisteredConfig,
 )
-from autobrr_remove.main import torrents_in_categories, warn_category_overlaps
+from tarr.main import torrents_in_categories, warn_category_overlaps
 
 
 class FakeClient:

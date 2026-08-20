@@ -63,13 +63,13 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: |
-            wthueb/autobrr-remove
-            ghcr.io/${{ github.repository_owner }}/autobrr-remove
+            wthueb/tarr
+            ghcr.io/${{ github.repository_owner }}/tarr
           labels: |
-            org.opencontainers.image.title=autobrr-remove
+            org.opencontainers.image.title=tarr
             org.opencontainers.image.description=Automatically remove torrents from qBittorrent based on custom criteria
           annotations: |
-            org.opencontainers.image.title=autobrr-remove
+            org.opencontainers.image.title=tarr
             org.opencontainers.image.description=Automatically remove torrents from qBittorrent based on custom criteria
 
       - name: Build and stage by digest
@@ -81,13 +81,13 @@ jobs:
           file: Dockerfile
           platforms: ${{ inputs.platform }}
           tags: |
-            wthueb/autobrr-remove
-            ghcr.io/${{ github.repository_owner }}/autobrr-remove
+            wthueb/tarr
+            ghcr.io/${{ github.repository_owner }}/tarr
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=autobrr-remove-${{ inputs.platform_key }}
-          cache-to: type=gha,mode=max,ignore-error=true,scope=autobrr-remove-${{ inputs.platform_key }}
+          cache-from: type=gha,scope=tarr-${{ inputs.platform_key }}
+          cache-to: type=gha,mode=max,ignore-error=true,scope=tarr-${{ inputs.platform_key }}
 
       - name: Record image digest
         if: inputs.publish
@@ -103,7 +103,7 @@ jobs:
         if: inputs.publish
         uses: actions/upload-artifact@v7
         with:
-          name: autobrr-remove-${{ inputs.platform_key }}-digest
+          name: tarr-${{ inputs.platform_key }}-digest
           path: ${{ runner.temp }}/digest/*
           if-no-files-found: error
           retention-days: 1
@@ -115,19 +115,19 @@ jobs:
           context: .
           file: Dockerfile
           platforms: ${{ inputs.platform }}
-          tags: autobrr-remove:e2e
+          tags: tarr:e2e
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
-          outputs: type=docker,dest=${{ runner.temp }}/autobrr-remove.tar
-          cache-from: type=gha,scope=autobrr-remove-${{ inputs.platform_key }}
-          cache-to: type=gha,mode=max,ignore-error=true,scope=autobrr-remove-${{ inputs.platform_key }}
+          outputs: type=docker,dest=${{ runner.temp }}/tarr.tar
+          cache-from: type=gha,scope=tarr-${{ inputs.platform_key }}
+          cache-to: type=gha,mode=max,ignore-error=true,scope=tarr-${{ inputs.platform_key }}
 
       - name: Upload e2e image
         if: ${{ !inputs.publish && inputs.export_e2e }}
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-autobrr-remove-${{ inputs.platform_key }}-image
-          path: ${{ runner.temp }}/autobrr-remove.tar
+          name: e2e-tarr-${{ inputs.platform_key }}-image
+          path: ${{ runner.temp }}/tarr.tar
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
@@ -142,5 +142,5 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
           outputs: type=cacheonly
-          cache-from: type=gha,scope=autobrr-remove-${{ inputs.platform_key }}
-          cache-to: type=gha,mode=max,ignore-error=true,scope=autobrr-remove-${{ inputs.platform_key }}
+          cache-from: type=gha,scope=tarr-${{ inputs.platform_key }}
+          cache-to: type=gha,mode=max,ignore-error=true,scope=tarr-${{ inputs.platform_key }}

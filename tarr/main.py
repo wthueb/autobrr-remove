@@ -12,7 +12,7 @@ from pydantic import ValidationError
 from qbittorrentapi.torrents import TorrentStatusesT
 from structlog.contextvars import bound_contextvars
 
-from autobrr_remove.config import (
+from tarr.config import (
     UNLIMITED,
     Config,
     QBittorrentConfig,
@@ -21,9 +21,9 @@ from autobrr_remove.config import (
     category_is_included,
     load_config,
 )
-from autobrr_remove.logging import setup_logging
+from tarr.logging import setup_logging
 
-log = structlog.stdlib.get_logger("autobrr_remove")
+log = structlog.stdlib.get_logger("tarr")
 
 STOPPED_COMPLETED_STATES = {"pausedUP", "stoppedUP"}
 

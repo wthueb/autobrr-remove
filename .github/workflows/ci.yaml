@@ -112,7 +112,7 @@ jobs:
         run: uv run pytest
 
   build_amd64_image:
-    name: Build autobrr-remove (amd64)
+    name: Build tarr (amd64)
     if: needs.route.outputs.run == 'true'
     needs:
       - route
@@ -131,7 +131,7 @@ jobs:
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   build_arm64_image:
-    name: Build autobrr-remove (arm64)
+    name: Build tarr (arm64)
     if: needs.route.outputs.run == 'true'
     needs:
       - route
@@ -179,38 +179,38 @@ jobs:
         if: needs.route.outputs.publish == 'true'
         uses: actions/download-artifact@v8
         with:
-          name: autobrr-remove-amd64-digest
-          path: ${{ runner.temp }}/digests/autobrr-remove
+          name: tarr-amd64-digest
+          path: ${{ runner.temp }}/digests/tarr
 
       - name: Load image from registry digest
         if: needs.route.outputs.publish == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          image_digest="sha256:$(basename "$(find "${RUNNER_TEMP}/digests/autobrr-remove" -type f -print -quit)")"
+          image_digest="sha256:$(basename "$(find "${RUNNER_TEMP}/digests/tarr" -type f -print -quit)")"
 
-          docker pull "ghcr.io/${GITHUB_REPOSITORY_OWNER}/autobrr-remove@${image_digest}"
+          docker pull "ghcr.io/${GITHUB_REPOSITORY_OWNER}/tarr@${image_digest}"
           docker tag \
-            "ghcr.io/${GITHUB_REPOSITORY_OWNER}/autobrr-remove@${image_digest}" \
-            autobrr-remove:e2e
+            "ghcr.io/${GITHUB_REPOSITORY_OWNER}/tarr@${image_digest}" \
+            tarr:e2e
 
       - name: Download image
         if: needs.route.outputs.publish != 'true'
         uses: actions/download-artifact@v8
         with:
-          name: e2e-autobrr-remove-amd64-image
+          name: e2e-tarr-amd64-image
           path: ${{ runner.temp }}/images
 
       - name: Load image artifact
         if: needs.route.outputs.publish != 'true'
         shell: bash
-        run: docker load --input "${RUNNER_TEMP}/images/autobrr-remove.tar"
+        run: docker load --input "${RUNNER_TEMP}/images/tarr.tar"
 
       - name: Test image
-        run: docker run --rm autobrr-remove:e2e autobrr-remove --help
+        run: docker run --rm tarr:e2e tarr --help
 
   publish:
-    name: Publish autobrr-remove
+    name: Publish tarr
     if: >-
       ${{
         always() &&
@@ -236,13 +236,13 @@ jobs:
       - name: Download amd64 digest
         uses: actions/download-artifact@v8
         with:
-          name: autobrr-remove-amd64-digest
+          name: tarr-amd64-digest
           path: ${{ runner.temp }}/digests/amd64
 
       - name: Download arm64 digest
         uses: actions/download-artifact@v8
         with:
-          name: autobrr-remove-arm64-digest
+          name: tarr-arm64-digest
           path: ${{ runner.temp }}/digests/arm64
 
       - name: Log in to Docker Hub
@@ -268,8 +268,8 @@ jobs:
           DOCKER_METADATA_ANNOTATIONS_LEVELS: index
         with:
           images: |
-            wthueb/autobrr-remove
-            ghcr.io/${{ github.repository_owner }}/autobrr-remove
+            wthueb/tarr
+            ghcr.io/${{ github.repository_owner }}/tarr
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -278,10 +278,10 @@ jobs:
             type=semver,pattern=v{{major}}.{{minor}}
             type=semver,pattern=v{{major}}
           labels: |
-            org.opencontainers.image.title=autobrr-remove
+            org.opencontainers.image.title=tarr
             org.opencontainers.image.description=Automatically remove torrents from qBittorrent based on custom criteria
           annotations: |
-            org.opencontainers.image.title=autobrr-remove
+            org.opencontainers.image.title=tarr
             org.opencontainers.image.description=Automatically remove torrents from qBittorrent based on custom criteria
 
       - name: Assemble and verify multi-platform image
@@ -341,11 +341,11 @@ jobs:
             ' <<< "${image_index}"
           }
 
-          create_index "wthueb/autobrr-remove" "${RUNNER_TEMP}/dockerhub-metadata.json"
+          create_index "wthueb/tarr" "${RUNNER_TEMP}/dockerhub-metadata.json"
           create_index \
-            "ghcr.io/${GITHUB_REPOSITORY_OWNER}/autobrr-remove" \
+            "ghcr.io/${GITHUB_REPOSITORY_OWNER}/tarr" \
             "${RUNNER_TEMP}/ghcr-metadata.json"
-          verify_index "wthueb/autobrr-remove" "${RUNNER_TEMP}/dockerhub-metadata.json"
+          verify_index "wthueb/tarr" "${RUNNER_TEMP}/dockerhub-metadata.json"
           verify_index \
-            "ghcr.io/${GITHUB_REPOSITORY_OWNER}/autobrr-remove" \
+            "ghcr.io/${GITHUB_REPOSITORY_OWNER}/tarr" \
             "${RUNNER_TEMP}/ghcr-metadata.json"

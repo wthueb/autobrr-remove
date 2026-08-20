@@ -9,7 +9,7 @@ from structlog.contextvars import merge_contextvars
 from structlog.processors import CallsiteParameter, CallsiteParameterAdder
 from structlog.typing import EventDict, Processor, WrappedLogger
 
-from autobrr_remove.config import LoggingConfig
+from tarr.config import LoggingConfig
 
 
 def _normalize_fields(
@@ -111,7 +111,7 @@ def setup_logging(cfg: LoggingConfig) -> None:
                 "level": cfg.level,
                 "handlers": root_handlers,
             },
-            "autobrr_remove": {
+            "tarr": {
                 "level": cfg.level,
                 "handlers": [],
                 "propagate": True,

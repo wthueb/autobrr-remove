@@ -13,9 +13,9 @@ services:
     ports:
       - 8080:8080
 
-  autobrr-remove:
-    container_name: autobrr-remove
-    image: ghcr.io/wthueb/autobrr-remove:latest
+  tarr:
+    container_name: tarr
+    image: ghcr.io/wthueb/tarr:latest
     build:
       context: .
       dockerfile: Dockerfile
