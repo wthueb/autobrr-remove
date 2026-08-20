@@ -67,10 +67,10 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/tarr
           labels: |
             org.opencontainers.image.title=tarr
-            org.opencontainers.image.description=Automatically remove torrents from qBittorrent based on custom criteria
+            org.opencontainers.image.description=(qbit)torrent manager
           annotations: |
             org.opencontainers.image.title=tarr
-            org.opencontainers.image.description=Automatically remove torrents from qBittorrent based on custom criteria
+            org.opencontainers.image.description=(qbit)torrent manager
 
       - name: Build and stage by digest
         if: inputs.publish
