@@ -12,8 +12,8 @@ Configuration lives in a YAML file (validated with pydantic on startup). Copy
 cp config.example.yaml config.yaml
 ```
 
-The config is organized into four independent features, each toggled with its
-own `enabled` flag:
+The `qbittorrent` section contains the connection, polling interval, and four
+independent features, each toggled with its own `enabled` flag:
 
 - **`remove_unregistered`** — deletes torrents whose tracker reports them as
   "unregistered", subject to its category filters.
@@ -48,30 +48,31 @@ can supply limits to `set_seed_limits`. Set either tracker value to `-1` for
 
 ### Seed-limit category policies
 
-Only categories listed under `set_seed_limits.categories` are managed. Category
+Only categories listed under `qbittorrent.set_seed_limits.categories` are managed. Category
 names are exact and case-sensitive; use `name: null` for uncategorized torrents.
 Each name may appear only once. An omitted or empty list is a valid no-op.
 
 ```yaml
-set_seed_limits:
-  enabled: true
-  default_seed_time_minutes: null
-  default_ratio: null
-  action: RemoveWithContent
+qbittorrent:
+  set_seed_limits:
+    enabled: true
+    default_seed_time_minutes: null
+    default_ratio: null
+    action: RemoveWithContent
 
-  categories:
-    - name: cross
-      use_tracker_limits: true
+    categories:
+      - name: cross
+        use_tracker_limits: true
 
-    - name: upload
-      seed_time_minutes: -1
-      ratio: -1
-      action: EnableSuperSeeding
+      - name: upload
+        seed_time_minutes: -1
+        ratio: -1
+        action: EnableSuperSeeding
 
-    - name: dontcare
-      seed_time_minutes: 0
-      use_tracker_limits: true
-      default_ratio: 0.5
+      - name: dontcare
+        seed_time_minutes: 0
+        use_tracker_limits: true
+        default_ratio: 0.5
 ```
 
 Seed time and ratio are resolved independently in this order: an explicit category

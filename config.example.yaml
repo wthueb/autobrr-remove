@@ -1,12 +1,3 @@
-# connection to the qBittorrent WebUI
-qbittorrent:
-  host: http://localhost:8080
-  username: admin
-  password: adminadmin
-
-# how often to check when running with --daemon
-interval_seconds: 60
-
 logging:
   level: INFO
   # logfmt (default) or json
@@ -14,71 +5,80 @@ logging:
   # file: /var/log/tarr/tarr.log
   # file_count: 20
 
-# delete torrents whose tracker reports them as "unregistered".
-# waits `delay_minutes` after first seeing the status before deleting, since some
-# trackers report it transiently.
-remove_unregistered:
-  enabled: true
-  delay_minutes: 15
-  # optionally, only consider torrents in these categories; omit or set to null
-  # to consider every category. a list entry of null represents no category.
-  categories: null
-  # never remove torrents in these categories; a `null` entry means torrents
-  # without a category (useful for torrents you are uploading)
-  ignore_categories:
-    - null
-    - upload
+# connection to the qBittorrent WebUI
+qbittorrent:
+  host: http://localhost:8080
+  username: admin
+  password: adminadmin
 
-# remove torrents after they have continuously appeared as completed and stopped for
-# `delay_minutes`. actively seeding torrents are left alone; tracking starts when
-# tarr first observes a completed torrent in a stopped state.
-remove_stopped:
-  enabled: false
-  delay_minutes: 15
-  # optionally, only consider torrents in these categories; omit or set to null
-  # to consider every category. a list entry of null represents no category.
-  categories: null
-  # always exclude these categories, even if they also appear in categories
-  ignore_categories: []
-  # Remove keeps downloaded files; RemoveWithContent deletes them
-  on_delete: Remove
+  # how often to check when running with --daemon
+  interval_seconds: 60
 
-# once free space drops below `free_space_threshold_gibi`, remove eligible torrents
-# (lowest upload rate first) until the threshold is met. a torrent is eligible once it
-# has seeded longer than its tracker's `seed_time_minutes` OR reached its `ratio`.
-maintain_free_space:
-  enabled: true
-  # only torrents in one of these categories are considered (set to null for all)
-  categories:
-    - autobrr
-  # always exclude these categories, even if they also appear in categories
-  ignore_categories: []
-  free_space_threshold_gibi: 1024
+  # delete torrents whose tracker reports them as "unregistered".
+  # waits `delay_minutes` after first seeing the status before deleting, since some
+  # trackers report it transiently.
+  remove_unregistered:
+    enabled: true
+    delay_minutes: 15
+    # optionally, only consider torrents in these categories; omit or set to null
+    # to consider every category. a list entry of null represents no category.
+    categories: null
+    # never remove torrents in these categories; a `null` entry means torrents
+    # without a category (useful for torrents you are uploading)
+    ignore_categories:
+      - null
+      - upload
 
-# reconcile qBittorrent share limits for the categories listed below. configured limits
-# replace different torrent values; null means preserve the current value and -1 means
-# unlimited.
-set_seed_limits:
-  enabled: true
-  default_seed_time_minutes: null
-  default_ratio: null
-  # Default, Stop, Remove, RemoveWithContent, or EnableSuperSeeding
-  action: RemoveWithContent
-  categories:
-    # use matching tracker limits, then the global defaults above
-    - name: cross
+  # remove torrents after they have continuously appeared as completed and stopped for
+  # `delay_minutes`. actively seeding torrents are left alone; tracking starts when
+  # tarr first observes a completed torrent in a stopped state.
+  remove_stopped:
+    enabled: false
+    delay_minutes: 15
+    # optionally, only consider torrents in these categories; omit or set to null
+    # to consider every category. a list entry of null represents no category.
+    categories: null
+    # always exclude these categories, even if they also appear in categories
+    ignore_categories: []
+    # Remove keeps downloaded files; RemoveWithContent deletes them
+    on_delete: Remove
 
-    # category limits take precedence over matching trackers
-    - name: upload
-      seed_time_minutes: -1
-      ratio: -1
+  # once free space drops below `free_space_threshold_gibi`, remove eligible torrents
+  # (lowest upload rate first) until the threshold is met. a torrent is eligible once it
+  # has seeded longer than its tracker's `seed_time_minutes` OR reached its `ratio`.
+  maintain_free_space:
+    enabled: true
+    # only torrents in one of these categories are considered (set to null for all)
+    categories:
+      - autobrr
+    # always exclude these categories, even if they also appear in categories
+    ignore_categories: []
+    free_space_threshold_gibi: 1024
 
-    # precedence is explicit category limit, tracker, category default, global default
-    - name: dontcare
-      seed_time_minutes: 0
-      use_tracker_limits: true # defaults to true
-      default_ratio: 0.5
-      action: Stop # optional per-category override
+  # reconcile qBittorrent share limits for the categories listed below. configured limits
+  # replace different torrent values; null means preserve the current value and -1 means
+  # unlimited.
+  set_seed_limits:
+    enabled: true
+    default_seed_time_minutes: null
+    default_ratio: null
+    # Default, Stop, Remove, RemoveWithContent, or EnableSuperSeeding
+    action: RemoveWithContent
+    categories:
+      # use matching tracker limits, then the global defaults above
+      - name: cross
+
+      # category limits take precedence over matching trackers
+      - name: upload
+        seed_time_minutes: -1
+        ratio: -1
+
+      # precedence is explicit category limit, tracker, category default, global default
+      - name: dontcare
+        seed_time_minutes: 0
+        use_tracker_limits: true # defaults to true
+        default_ratio: 0.5
+        action: Stop # optional per-category override
 
 # seed time and ratio limits are defined per tracker. a torrent is matched to a tracker
 # by its announce hostname. used both for removal eligibility (maintain_free_space) and

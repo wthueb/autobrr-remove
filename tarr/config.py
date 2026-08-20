@@ -43,14 +43,6 @@ def category_is_included(
     return (categories is None or category in categories) and category not in ignore_categories
 
 
-class QBittorrentConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    host: str
-    username: str
-    password: str
-
-
 class TrackerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -220,17 +212,25 @@ class SetSeedLimitsConfig(BaseModel):
         return next((item for item in self.categories if item.name == category), None)
 
 
+class QBittorrentConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    host: str
+    username: str
+    password: str
+    interval_seconds: int = Field(default=60, ge=1)
+    remove_unregistered: RemoveUnregisteredConfig = Field(default_factory=RemoveUnregisteredConfig)
+    remove_stopped: RemoveStoppedConfig = Field(default_factory=RemoveStoppedConfig)
+    maintain_free_space: MaintainFreeSpaceConfig = Field(default_factory=MaintainFreeSpaceConfig)
+    set_seed_limits: SetSeedLimitsConfig = Field(default_factory=SetSeedLimitsConfig)
+
+
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     qbittorrent: QBittorrentConfig
     trackers: list[TrackerConfig] = Field(min_length=1)
-    interval_seconds: int = Field(default=60, ge=1)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
-    remove_unregistered: RemoveUnregisteredConfig = Field(default_factory=RemoveUnregisteredConfig)
-    remove_stopped: RemoveStoppedConfig = Field(default_factory=RemoveStoppedConfig)
-    maintain_free_space: MaintainFreeSpaceConfig = Field(default_factory=MaintainFreeSpaceConfig)
-    set_seed_limits: SetSeedLimitsConfig = Field(default_factory=SetSeedLimitsConfig)
 
     def match_tracker(self, tracker_urls: Iterable[str]) -> TrackerConfig | None:
         """Return the first configured tracker matching any of the torrent's tracker URLs."""

@@ -70,7 +70,15 @@ def test_all_feature_configs_accept_both_filters(config_type):
 def test_startup_warning_names_overlapping_categories():
     config = Config.model_validate(
         {
-            "qbittorrent": {"host": "localhost", "username": "user", "password": "pass"},
+            "qbittorrent": {
+                "host": "localhost",
+                "username": "user",
+                "password": "pass",
+                "remove_unregistered": {
+                    "categories": ["music", None],
+                    "ignore_categories": ["music", None],
+                },
+            },
             "trackers": [
                 {
                     "name": "example",
@@ -79,10 +87,6 @@ def test_startup_warning_names_overlapping_categories():
                     "ratio": 1,
                 }
             ],
-            "remove_unregistered": {
-                "categories": ["music", None],
-                "ignore_categories": ["music", None],
-            },
         }
     )
 

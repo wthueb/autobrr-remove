@@ -157,7 +157,12 @@ def test_run_binds_job_and_torrent_context_during_removal():
     client = FakeClient([torrent])
     config = Config.model_validate(
         {
-            "qbittorrent": {"host": "localhost", "username": "user", "password": "pass"},
+            "qbittorrent": {
+                "host": "localhost",
+                "username": "user",
+                "password": "pass",
+                "remove_stopped": {"enabled": True},
+            },
             "trackers": [
                 {
                     "name": "example",
@@ -166,7 +171,6 @@ def test_run_binds_job_and_torrent_context_during_removal():
                     "ratio": 1,
                 }
             ],
-            "remove_stopped": {"enabled": True},
         }
     )
 

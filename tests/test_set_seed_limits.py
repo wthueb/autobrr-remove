@@ -19,7 +19,12 @@ class FakeClient:
 def make_config(set_seed_limits):
     return Config.model_validate(
         {
-            "qbittorrent": {"host": "localhost", "username": "user", "password": "pass"},
+            "qbittorrent": {
+                "host": "localhost",
+                "username": "user",
+                "password": "pass",
+                "set_seed_limits": set_seed_limits,
+            },
             "trackers": [
                 {
                     "name": "example",
@@ -28,7 +33,6 @@ def make_config(set_seed_limits):
                     "ratio": 2.0,
                 }
             ],
-            "set_seed_limits": set_seed_limits,
         }
     )
 
