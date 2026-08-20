@@ -1,5 +1,23 @@
 # Changelog
 
+## [5.0.0](https://github.com/wthueb/tarr/compare/v4.0.0...v5.0.0) (2026-08-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* restructure config to nest under qbittorrent
+* rename to tarr
+
+### Features
+
+* rename to tarr ([372c116](https://github.com/wthueb/tarr/commit/372c1167d054a16e1cc919ad44b7ec518d85ff0f))
+* restructure config to nest under qbittorrent ([4adc6c4](https://github.com/wthueb/tarr/commit/4adc6c424962fd49f5a8337102a77058afe613f6))
+
+
+### Bug Fixes
+
+* change free space maintenance sort order to ratio/seed time ([3e9c616](https://github.com/wthueb/tarr/commit/3e9c61679e9ef60a6464906de62342e7b54d0432))
+
 ## [4.0.0](https://github.com/wthueb/tarr/compare/v3.2.1...v4.0.0) (2026-08-13)
 
 
